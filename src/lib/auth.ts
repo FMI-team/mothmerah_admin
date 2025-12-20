@@ -12,11 +12,37 @@ interface AuthTokens {
 interface DecodedToken {
   exp?: number; // Expiration time (Unix timestamp)
   iat?: number; // Issued at time
-  [key: string]: any;
+  [key: string]: string | number | undefined;
 }
 
 /**
- * Store authentication tokens in localStorage and sync to cookies
+ * Cookie utility functions
+ */
+function setCookie(name: string, value: string, expiresAt: number): void {
+  if (typeof document === "undefined") return;
+  const expires = new Date(expiresAt).toUTCString();
+  document.cookie = `${name}=${value}; expires=${expires}; path=/; SameSite=Lax`;
+}
+
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const nameEQ = name + "=";
+  const ca = document.cookie.split(";");
+  for (let i = 0; i < ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) === " ") c = c.substring(1, c.length);
+    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+  }
+  return null;
+}
+
+function deleteCookie(name: string): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+}
+
+/**
+ * Store authentication tokens in cookies
  */
 export function storeAuthTokens(tokens: AuthTokens): void {
   if (typeof window === "undefined") return;
@@ -26,40 +52,35 @@ export function storeAuthTokens(tokens: AuthTokens): void {
     tokens.expires_at ||
     Date.now() + 60 * 60 * 1000; // 1 hour default
 
-  // Store in localStorage
-  localStorage.setItem("access_token", tokens.access_token);
-  localStorage.setItem("refresh_token", tokens.refresh_token);
-  localStorage.setItem("token_type", tokens.token_type || "bearer");
-  localStorage.setItem("expires_at", expiresAt.toString());
-
-  // Also store in cookies for server-side middleware access
-  const cookieExpires = new Date(expiresAt).toUTCString();
-  document.cookie = `access_token=${tokens.access_token}; expires=${cookieExpires}; path=/; SameSite=Lax`;
-  document.cookie = `token_type=${tokens.token_type || "bearer"}; expires=${cookieExpires}; path=/; SameSite=Lax`;
+  // Store in cookies
+  setCookie("access_token", tokens.access_token, expiresAt);
+  setCookie("refresh_token", tokens.refresh_token, expiresAt);
+  setCookie("token_type", tokens.token_type || "bearer", expiresAt);
+  setCookie("expires_at", expiresAt.toString(), expiresAt);
 }
 
 /**
- * Get access token from localStorage
+ * Get access token from cookies
  */
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("access_token");
+  return getCookie("access_token");
 }
 
 /**
- * Get refresh token from localStorage
+ * Get refresh token from cookies
  */
 export function getRefreshToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("refresh_token");
+  return getCookie("refresh_token");
 }
 
 /**
- * Get token type from localStorage
+ * Get token type from cookies
  */
 export function getTokenType(): string {
   if (typeof window === "undefined") return "bearer";
-  return localStorage.getItem("token_type") || "bearer";
+  return getCookie("token_type") || "bearer";
 }
 
 /**
@@ -92,8 +113,8 @@ export function isTokenExpired(): boolean {
   const accessToken = getAccessToken();
   if (!accessToken) return true;
 
-  // First check localStorage expires_at
-  const expiresAt = localStorage.getItem("expires_at");
+  // First check cookie expires_at
+  const expiresAt = getCookie("expires_at");
   if (expiresAt) {
     const expirationTime = parseInt(expiresAt, 10);
     if (Date.now() >= expirationTime) {
@@ -128,16 +149,14 @@ export function isAuthenticated(): boolean {
 export function clearAuthTokens(): void {
   if (typeof window === "undefined") return;
   
-  // Clear localStorage
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("refresh_token");
-  localStorage.removeItem("token_type");
-  localStorage.removeItem("expires_at");
-  localStorage.removeItem("user");
-  
   // Clear cookies
-  document.cookie = "access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-  document.cookie = "token_type=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+  deleteCookie("access_token");
+  deleteCookie("refresh_token");
+  deleteCookie("token_type");
+  deleteCookie("expires_at");
+  
+  // Also clear user data from localStorage if it exists
+  localStorage.removeItem("user");
 }
 
 /**
@@ -153,12 +172,12 @@ export function logout(redirectTo: string = "/signin"): void {
 /**
  * Get authorization header for API requests
  */
-export function getAuthHeader(): { Authorization: string } | {} {
+export function getAuthHeader(): { Authorization: string } {
   const token = getAccessToken();
-  const tokenType = getTokenType();
+  const tokenType = getTokenType();  
   
-  if (!token) return {};
-  
+  if (!token) return { Authorization: "" };
+
   return {
     Authorization: `${tokenType.charAt(0).toUpperCase() + tokenType.slice(1)} ${token}`,
   };

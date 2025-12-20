@@ -53,16 +53,9 @@ export default function SignInForm() {
       if (data.access_token) {
         storeAuthTokens({
           access_token: data.access_token,
-          refresh_token: data.refresh_token || "",
-          token_type: data.token_type || "bearer",
+          refresh_token: data.refresh_token,
+          token_type: data.token_type,
         });
-        
-        // Save user data if provided
-        if (data.user || data.data?.user) {
-          if (typeof window !== "undefined") {
-            localStorage.setItem("user", JSON.stringify(data.user || data.data?.user));
-          }
-        }
       }
 
       // Redirect to dashboard
@@ -167,13 +160,11 @@ export default function SignInForm() {
                   <Input
                     placeholder="Enter your phone number"
                     type="tel"
-                    value={phoneNumber}
+                    defaultValue={phoneNumber}
                     onChange={(e) => {
                       setPhoneNumber(e.target.value);
                       setError(null);
-                    }}
-                    required
-                  />
+                    }}/>
                 </div>
                 <div>
                   <Label>
@@ -183,12 +174,11 @@ export default function SignInForm() {
                     <Input
                       type={showPassword ? "text" : "password"}
                       placeholder="Enter your password"
-                      value={password}
+                      defaultValue={password}
                       onChange={(e) => {
                         setPassword(e.target.value);
                         setError(null);
                       }}
-                      required
                     />
                     <span
                       onClick={() => setShowPassword(!showPassword)}
@@ -220,7 +210,6 @@ export default function SignInForm() {
                   <Button
                     className="w-full"
                     size="sm"
-                    type="submit"
                     disabled={isLoading || !phoneNumber || !password}
                   >
                     {isLoading ? "Signing in..." : "Sign in"}
@@ -228,18 +217,6 @@ export default function SignInForm() {
                 </div>
               </div>
             </form>
-
-            <div className="mt-5">
-              <p className="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start">
-                Don&apos;t have an account? {""}
-                <Link
-                  href="/signup"
-                  className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
-                >
-                  Sign Up
-                </Link>
-              </p>
-            </div>
           </div>
         </div>
       </div>
