@@ -182,7 +182,7 @@ export default function UserManagement() {
 
 
       const response = await fetch(
-        `http://127.0.0.1:8000/admin/users`,
+        `https://api-testing.mothmerah.sa/admin/users`,
         {
           method: "GET",
           headers: {
@@ -251,7 +251,7 @@ export default function UserManagement() {
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        `http://127.0.0.1:8000/admin/users/${userId}`,
+        `https://api-testing.mothmerah.sa/admin/users/${userId}`,
         {
           method: "DELETE",
           headers: {
@@ -292,7 +292,7 @@ export default function UserManagement() {
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        "http://127.0.0.1:8000/admin/admin/verification/user-verification-statuses",
+        "https://api-testing.mothmerah.sa/admin/admin/verification/user-verification-statuses",
         {
           method: "GET",
           headers: {
@@ -345,7 +345,7 @@ export default function UserManagement() {
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        `http://127.0.0.1:8000/admin/users/${selectedUserForStatusChange.user_id}/status`,
+        `https://api-testing.mothmerah.sa/admin/users/${selectedUserForStatusChange.user_id}/status`,
         {
           method: "PATCH",
           headers: {
