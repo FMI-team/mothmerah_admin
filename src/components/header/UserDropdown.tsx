@@ -1,18 +1,82 @@
 "use client";
 import Image from "next/image";
-import Link from "next/link";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
-import { logout } from "@/lib/auth";
+import { logout, getAuthHeader } from "@/lib/auth";
+
+interface CurrentUser {
+  fullName?: string;
+  email?: string;
+}
 
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
+  const [user, setUser] = useState<CurrentUser | null>(null);
 
-function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
-  e.stopPropagation();
-  setIsOpen((prev) => !prev);
-}
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const authHeader = getAuthHeader();
+        if (!authHeader.Authorization) return;
+
+        const res = await fetch(
+          "https://api-testing.mothmerah.sa/api/v1/users/me",
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              ...authHeader,
+            },
+          }
+        );
+
+        if (!res.ok) {
+          console.error("Failed to fetch current user");
+          return;
+        }
+
+        const data = (await res.json()) as {
+          email?: string;
+          username?: string;
+          user_email?: string;
+          first_name?: string;
+          given_name?: string;
+          last_name?: string;
+          full_name?: string;
+          name?: string;
+        };
+
+        const email: string | undefined =
+          data.email || data.username || data.user_email;
+        const firstName: string | undefined =
+          data.first_name || data.given_name;
+        const lastName: string | undefined = data.last_name;
+
+        let fullName: string | undefined = data.full_name || data.name;
+        if (!fullName) {
+          fullName = [firstName, lastName].filter(Boolean).join(" ");
+        }
+        if (!fullName && email) {
+          fullName = email.split("@")[0];
+        }
+
+        setUser({
+          fullName,
+          email,
+        });
+      } catch (err) {
+        console.error("Error fetching current user:", err);
+      }
+    };
+
+    fetchCurrentUser();
+  }, []);
+
+  function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
+    e.stopPropagation();
+    setIsOpen((prev) => !prev);
+  }
 
   function closeDropdown() {
     setIsOpen(false);
@@ -32,7 +96,9 @@ function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
           />
         </span>
 
-        <span className="block mr-1 font-medium text-theme-sm">Musharof</span>
+        <span className="block mr-1 font-medium text-theme-sm">
+          {user?.fullName || "مسؤول النظام"}
+        </span>
 
         <svg
           className={`stroke-gray-500 dark:stroke-gray-400 transition-transform duration-200 ${
@@ -61,10 +127,10 @@ function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
       >
         <div>
           <span className="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">
-            Musharof Chowdhury
+            {user?.fullName || "مسؤول النظام"}
           </span>
           <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400">
-            randomuser@pimjo.com
+            {user?.email || "admin@example.com"}
           </span>
         </div>
 
@@ -73,32 +139,7 @@ function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
             <DropdownItem
               onItemClick={closeDropdown}
               tag="a"
-              href="/profile"
-              className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-            >
-              <svg
-                className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                  d="M12 3.5C7.30558 3.5 3.5 7.30558 3.5 12C3.5 14.1526 4.3002 16.1184 5.61936 17.616C6.17279 15.3096 8.24852 13.5955 10.7246 13.5955H13.2746C15.7509 13.5955 17.8268 15.31 18.38 17.6167C19.6996 16.119 20.5 14.153 20.5 12C20.5 7.30558 16.6944 3.5 12 3.5ZM17.0246 18.8566V18.8455C17.0246 16.7744 15.3457 15.0955 13.2746 15.0955H10.7246C8.65354 15.0955 6.97461 16.7744 6.97461 18.8455V18.856C8.38223 19.8895 10.1198 20.5 12 20.5C13.8798 20.5 15.6171 19.8898 17.0246 18.8566ZM2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12ZM11.9991 7.25C10.8847 7.25 9.98126 8.15342 9.98126 9.26784C9.98126 10.3823 10.8847 11.2857 11.9991 11.2857C13.1135 11.2857 14.0169 10.3823 14.0169 9.26784C14.0169 8.15342 13.1135 7.25 11.9991 7.25ZM8.48126 9.26784C8.48126 7.32499 10.0563 5.75 11.9991 5.75C13.9419 5.75 15.5169 7.32499 15.5169 9.26784C15.5169 11.2107 13.9419 12.7857 11.9991 12.7857C10.0563 12.7857 8.48126 11.2107 8.48126 9.26784Z"
-                  fill=""
-                />
-              </svg>
-              Edit profile
-            </DropdownItem>
-          </li>
-          <li>
-            <DropdownItem
-              onItemClick={closeDropdown}
-              tag="a"
-              href="/profile"
+              href="/settings"
               className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <svg
@@ -123,7 +164,7 @@ function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
             <DropdownItem
               onItemClick={closeDropdown}
               tag="a"
-              href="/profile"
+              href="/support"
               className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <svg

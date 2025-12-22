@@ -8,7 +8,7 @@ import {
   TableRow,
 } from "../ui/table";
 import Badge from "../ui/badge/Badge";
-import { UserCircleIcon, MoreDotIcon } from "@/icons";
+import { UserCircleIcon, MoreDotIcon, PlusIcon } from "@/icons";
 import { getAuthHeader } from "@/lib/auth";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
@@ -405,10 +405,10 @@ export default function UserManagement() {
       </div>
 
       {/* Filters and Search */}
-      {/* <button className="hidden items-center gap-2 rounded-lg bg-purple-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs hover:bg-purple-600 lg:inline-flex">
+      <button className="hidden items-center gap-2 rounded-lg bg-purple-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs hover:bg-purple-600 lg:inline-flex">
             <PlusIcon className="w-4 h-4" />
-            إضافة مستخدم جديد
-          </button> */}
+            إضافة مستخدم جديد (قريبا)
+          </button>
       {/* <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/3 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

@@ -134,6 +134,45 @@ export function isTokenExpired(): boolean {
   return false;
 }
 
+// -------- User helpers (decoded from token) --------
+
+export interface AuthUser {
+  fullName?: string;
+  email?: string;
+}
+
+export function getAuthUser(): AuthUser | null {
+  if (typeof window === "undefined") return null;
+  const token = getAccessToken();
+  if (!token) return null;
+
+  const decoded = decodeToken(token);
+  if (!decoded) return null;
+
+  const email =
+    (decoded.email as string | undefined) ||
+    (decoded.username as string | undefined) ||
+    (decoded.sub as string | undefined);
+
+  const firstName =
+    (decoded.first_name as string | undefined) ||
+    (decoded.given_name as string | undefined);
+  const lastName = decoded.last_name as string | undefined;
+
+  let fullName =
+    (decoded.name as string | undefined) ||
+    [firstName, lastName].filter(Boolean).join(" ");
+
+  if (!fullName && email) {
+    fullName = email.split("@")[0];
+  }
+
+  return {
+    fullName: fullName || undefined,
+    email: email || undefined,
+  };
+}
+
 /**
  * Check if user is authenticated
  */
