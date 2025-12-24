@@ -1,6 +1,6 @@
 "use client";
-import React, { useState } from "react";
-import { DownloadIcon, PencilIcon, MoreDotIcon, PaperPlaneIcon, PlusIcon } from "@/icons";
+import { useState } from "react";
+import { PencilIcon, MoreDotIcon, PaperPlaneIcon, PlusIcon } from "@/icons";
 import Badge from "../ui/badge/Badge";
 import {
   Table,
