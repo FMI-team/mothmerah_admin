@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -154,6 +155,7 @@ const formatDate = (dateString: string | null): string => {
 };
 
 export default function UserManagement() {
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -608,6 +610,15 @@ export default function UserManagement() {
                                   onClose={() => setActionDropdownOpen(null)}
                                   className="absolute left-0 mt-2 w-40 p-2 z-50"
                                 >
+                                  <DropdownItem
+                                    onItemClick={() => {
+                                      setActionDropdownOpen(null);
+                                      router.push(`/profile?userId=${user.user_id}`);
+                                    }}
+                                    className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                                  >
+                                    عرض التفاصيل
+                                  </DropdownItem>
                                   <DropdownItem
                                     onItemClick={() => {
                                       setActionDropdownOpen(null);

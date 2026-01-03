@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { MoreDotIcon, DownloadIcon, ArrowUpIcon, CalenderIcon } from "@/icons";
 import Badge from "../ui/badge/Badge";
 import {
@@ -160,7 +161,7 @@ const mapApiProductToProduct = (api: ApiProduct): Product => {
   const saleType: "ثابت" | "مزاد" | "RFQ" = "ثابت";
 
   return {
-    id: api.product_id,
+    id: api.product_id, // This is the product_id from API
     name:
       arTranslation?.translated_product_name ??
       api.category?.category_name_key ??
@@ -178,6 +179,8 @@ const mapApiProductToProduct = (api: ApiProduct): Product => {
 
 
 export default function WholesalerProductsPage() {
+  const router = useRouter();
+  const pathname = usePathname();
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [actionDropdownOpen, setActionDropdownOpen] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -679,6 +682,7 @@ export default function WholesalerProductsPage() {
                         <DropdownItem
                           onItemClick={() => {
                             setActionDropdownOpen(null);
+                            router.push(`${pathname}/${product.id}`);
                           }}
                           className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
                         >

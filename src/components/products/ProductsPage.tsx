@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { DownloadIcon, MoreDotIcon } from "@/icons";
 import Badge from "../ui/badge/Badge";
 import {
@@ -204,6 +205,8 @@ const mapApiProductToProduct = (api: ApiProduct): Product => {
 };
 
 export default function ProductsPage() {
+  const router = useRouter();
+  const pathname = usePathname();
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("الكل");
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [actionDropdownOpen, setActionDropdownOpen] = useState<string | null>(
@@ -623,6 +626,7 @@ export default function ProductsPage() {
                           <DropdownItem
                             onItemClick={() => {
                               setActionDropdownOpen(null);
+                              router.push(`${pathname}/${product.id}`);
                             }}
                             className="flex w-full rounded-lg font-normal text-right text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
                           >

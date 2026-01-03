@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { MoreDotIcon, PlusIcon, DownloadIcon, ArrowUpIcon, CalenderIcon } from "@/icons";
 import Badge from "../ui/badge/Badge";
 import {
@@ -12,6 +12,7 @@ import {
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import Button from "../ui/button/Button";
+import { getAuthHeader } from "@/lib/auth";
 
 interface Auction {
   id: string;
@@ -22,6 +23,32 @@ interface Auction {
   status: "قائم" | "منتهي" | "قادم";
   productArrivalStatus: "مؤكد" | "غير مؤكد";
   startDate: string;
+}
+
+interface AuctionStatusTranslation {
+  language_code: string;
+  translated_status_name?: string;
+  translated_description?: string | null;
+}
+
+interface AuctionStatus {
+  status_name_key: string;
+  status_description_key: string;
+  auction_status_id: number;
+  translations: AuctionStatusTranslation[];
+}
+
+interface AuctionTypeTranslation {
+  language_code: string;
+  translated_type_name?: string;
+  translated_description?: string | null;
+}
+
+interface AuctionType {
+  type_name_key: string;
+  description_key: string;
+  auction_type_id: number;
+  translations: AuctionTypeTranslation[];
 }
 
 const mockAuctions: Auction[] = [
@@ -120,6 +147,22 @@ const statisticsCards = [
   },
 ];
 
+const getArabicTranslation = (
+  translations: AuctionStatusTranslation[],
+  field: "translated_status_name" | "translated_description"
+): string => {
+  const arabicTranslation = translations.find((t) => t.language_code === "ar");
+  return arabicTranslation?.[field] || "";
+};
+
+const getAuctionTypeArabicTranslation = (
+  translations: AuctionTypeTranslation[],
+  field: "translated_type_name" | "translated_description"
+): string => {
+  const arabicTranslation = translations.find((t) => t.language_code === "ar");
+  return arabicTranslation?.[field] || "";
+};
+
 export default function AuctionManagement() {
   const [selectedAuctions, setSelectedAuctions] = useState<string[]>([]);
   const [actionDropdownOpen, setActionDropdownOpen] = useState<string | null>(null);
@@ -130,9 +173,74 @@ export default function AuctionManagement() {
   const [statusFilter, setStatusFilter] = useState("الكل");
   const [startDateFilter, setStartDateFilter] = useState("18/02/2025");
   const [endDateFilter, setEndDateFilter] = useState("12/02/2025");
+  const [auctionStatuses, setAuctionStatuses] = useState<AuctionStatus[]>([]);
+  const [isLoadingStatuses, setIsLoadingStatuses] = useState(false);
+  const [auctionTypes, setAuctionTypes] = useState<AuctionType[]>([]);
+  const [isLoadingTypes, setIsLoadingTypes] = useState(false);
   
   const itemsPerPage = 6;
   const totalItems = 100;
+
+  const fetchAuctionStatuses = useCallback(async () => {
+    setIsLoadingStatuses(true);
+    try {
+      const authHeader = getAuthHeader();
+      const response = await fetch(
+        "http://127.0.0.1:8000/admin/admin/auctions/statuses",
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeader,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("فشل في جلب حالات المزادات");
+      }
+
+      const data: AuctionStatus[] = await response.json();
+      setAuctionStatuses(data);
+    } catch (err) {
+      console.error("Error fetching auction statuses:", err);
+    } finally {
+      setIsLoadingStatuses(false);
+    }
+  }, []);
+
+  const fetchAuctionTypes = useCallback(async () => {
+    setIsLoadingTypes(true);
+    try {
+      const authHeader = getAuthHeader();
+      const response = await fetch(
+        "http://127.0.0.1:8000/admin/admin/auctions/types",
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeader,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("فشل في جلب أنواع المزادات");
+      }
+
+      const data: AuctionType[] = await response.json();
+      setAuctionTypes(data);
+    } catch (err) {
+      console.error("Error fetching auction types:", err);
+    } finally {
+      setIsLoadingTypes(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAuctionStatuses();
+    fetchAuctionTypes();
+  }, [fetchAuctionStatuses, fetchAuctionTypes]);
 
   const paginatedAuctions = mockAuctions.slice(
     (currentPage - 1) * itemsPerPage,
@@ -255,10 +363,20 @@ export default function AuctionManagement() {
               value={auctionTypeFilter}
               onChange={(e) => setAuctionTypeFilter(e.target.value)}
               className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
+              disabled={isLoadingTypes}
             >
               <option value="الكل">نوع المزاد: الكل</option>
-              <option value="حضوري">حضوري</option>
-              <option value="عن بعد">عن بعد</option>
+              {auctionTypes.map((type) => {
+                const typeName = getAuctionTypeArabicTranslation(
+                  type.translations,
+                  "translated_type_name"
+                ) || type.type_name_key;
+                return (
+                  <option key={type.auction_type_id} value={type.type_name_key}>
+                    {typeName}
+                  </option>
+                );
+              })}
             </select>
 
             <select
@@ -277,11 +395,20 @@ export default function AuctionManagement() {
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
+              disabled={isLoadingStatuses}
             >
               <option value="الكل">الحالة: الكل</option>
-              <option value="قائم">قائم</option>
-              <option value="منتهي">منتهي</option>
-              <option value="قادم">قادم</option>
+              {auctionStatuses.map((status) => {
+                const statusName = getArabicTranslation(
+                  status.translations,
+                  "translated_status_name"
+                ) || status.status_name_key;
+                return (
+                  <option key={status.auction_status_id} value={status.status_name_key}>
+                    {statusName}
+                  </option>
+                );
+              })}
             </select>
 
             <div className="relative">
