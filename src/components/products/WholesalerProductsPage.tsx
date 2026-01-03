@@ -629,12 +629,12 @@ export default function WholesalerProductsPage() {
                               const target = e.target as HTMLImageElement;
                               target.style.display = "none";
                               if (target.parentElement) {
-                                target.parentElement.className += " bg-gradient-to-tr from-yellow-400 to-orange-500";
+                                target.parentElement.className += " bg-linear-to-tr from-yellow-400 to-orange-500";
                               }
                             }}
                           />
                         ) : (
-                          <div className="h-full w-full bg-gradient-to-tr from-yellow-400 to-orange-500" />
+                          <div className="h-full w-full bg-linear-to-tr from-yellow-400 to-orange-500" />
                         )}
                       </div>
                     </div>
