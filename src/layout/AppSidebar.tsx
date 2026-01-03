@@ -137,12 +137,31 @@ const farmerNavItems: NavItem[] = [
     icon: <DocsIcon />,
     name: "ادارة الفواتير",
     path: "/farmer/invoices",
+  }
+];
+
+// Commercial Buyer navigation items
+const commercialBuyerNavItems: NavItem[] = [
+  {
+    icon: <GridIcon />,
+    name: "لوحة التحكم",
+    path: "/commercial-buyer",
   },
   {
-    icon: <TaskIcon />,
-    name: "ادارة المطالبات",
-    path: "/farmer/claims",
+    icon: <BoxIcon />,
+    name: "كتالوج المنتجات",
+    path: "/commercial-buyer/products",
   },
+  {
+    icon: <BoltIcon />,
+    name: "ادارة المزادات",
+    path: "/commercial-buyer/auctions",
+  },
+  {
+    icon: <DocsIcon />,
+    name: "ادارة الفواتير",
+    path: "/commercial-buyer/invoices",
+  }
 ];
 
 const othersItems: NavItem[] = [];
@@ -171,6 +190,8 @@ const AppSidebar: React.FC = () => {
       return wholesalerNavItems;
     } else if (userType === "FARMER" || userType === "farmer") {
       return farmerNavItems;
+    } else if (userType === "COMMERCIAL_BUYER" || userType === "commercial_buyer" || userType === "COMMERCIALBUYER" || userType === "commercialBuyer") {
+      return commercialBuyerNavItems;
     } else {
       return adminNavItems;
     }
@@ -207,6 +228,11 @@ const AppSidebar: React.FC = () => {
     // For farmer "/farmer" - match if pathname is exactly "/farmer" or starts with "/farmer/" but has no additional path segments
     if (path === "/farmer") {
       return pathname === "/farmer" || pathname === "/farmer/";
+    }
+    
+    // For commercial buyer "/commercial-buyer" - match if pathname is exactly "/commercial-buyer" or starts with "/commercial-buyer/" but has no additional path segments
+    if (path === "/commercial-buyer") {
+      return pathname === "/commercial-buyer" || pathname === "/commercial-buyer/";
     }
     
     // For other paths, check if pathname starts with the path followed by "/" or is exactly the path
@@ -418,6 +444,8 @@ const AppSidebar: React.FC = () => {
               ? "/wholesaler"
               : userType === "FARMER" || userType === "farmer"
               ? "/farmer"
+              : userType === "COMMERCIAL_BUYER" || userType === "commercial_buyer" || userType === "COMMERCIALBUYER" || userType === "commercialBuyer"
+              ? "/commercial-buyer"
               : "/"
           }
         >
@@ -467,6 +495,8 @@ const AppSidebar: React.FC = () => {
                         ? "تاجر الجملة"
                         : userType === "FARMER" || userType === "farmer"
                         ? "مزارع"
+                        : userType === "COMMERCIAL_BUYER" || userType === "commercial_buyer" || userType === "COMMERCIALBUYER" || userType === "commercialBuyer"
+                        ? "مشتري تجاري"
                         : "مسؤول النظام"}
                     </span>
                   </>

@@ -31,28 +31,37 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     const userType = getUserType();
     const isWholesaler = userType === "WHOLESALER" || userType === "wholesaler";
     const isFarmer = userType === "FARMER" || userType === "farmer";
+    const isCommercialBuyer = userType === "COMMERCIAL_BUYER" || userType === "commercial_buyer" || userType === "COMMERCIALBUYER" || userType === "commercialBuyer";
     const isAdminRoute = pathname.startsWith("/") && 
                          !pathname.startsWith("/wholesaler") && 
                          !pathname.startsWith("/farmer") && 
+                         !pathname.startsWith("/commercial-buyer") && 
                          !pathname.startsWith("/signin") && 
                          !pathname.startsWith("/signup");
     const isWholesalerRoute = pathname.startsWith("/wholesaler");
     const isFarmerRoute = pathname.startsWith("/farmer");
+    const isCommercialBuyerRoute = pathname.startsWith("/commercial-buyer");
 
-    // If wholesaler tries to access admin or farmer routes, redirect
-    if (isWholesaler && (isAdminRoute || isFarmerRoute)) {
+    // If wholesaler tries to access other routes, redirect
+    if (isWholesaler && (isAdminRoute || isFarmerRoute || isCommercialBuyerRoute)) {
       router.push("/wholesaler");
       return;
     }
 
-    // If farmer tries to access admin or wholesaler routes, redirect
-    if (isFarmer && (isAdminRoute || isWholesalerRoute)) {
+    // If farmer tries to access other routes, redirect
+    if (isFarmer && (isAdminRoute || isWholesalerRoute || isCommercialBuyerRoute)) {
       router.push("/farmer");
       return;
     }
 
-    // If admin tries to access wholesaler or farmer routes, redirect
-    if (!isWholesaler && !isFarmer && (isWholesalerRoute || isFarmerRoute)) {
+    // If commercial buyer tries to access other routes, redirect
+    if (isCommercialBuyer && (isAdminRoute || isWholesalerRoute || isFarmerRoute)) {
+      router.push("/commercial-buyer");
+      return;
+    }
+
+    // If admin tries to access other user type routes, redirect
+    if (!isWholesaler && !isFarmer && !isCommercialBuyer && (isWholesalerRoute || isFarmerRoute || isCommercialBuyerRoute)) {
       router.push("/");
       return;
     }

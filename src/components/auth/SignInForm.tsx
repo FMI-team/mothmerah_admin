@@ -66,6 +66,8 @@ export default function SignInForm() {
             router.push("/wholesaler");
           } else if (userType === "FARMER" || userType === "farmer") {
             router.push("/farmer");
+          } else if (userType === "COMMERCIAL_BUYER" || userType === "commercial_buyer" || userType === "COMMERCIALBUYER" || userType === "commercialBuyer") {
+            router.push("/commercial-buyer");
           } else {
             router.push("/");
           }

@@ -93,19 +93,31 @@ export function middleware(request: NextRequest) {
     } 
     // If user is FARMER, redirect to farmer panel
     else if (userType === "FARMER" || userType === "farmer") {
-      // If accessing admin or wholesaler routes, redirect to farmer panel
+      // If accessing admin, wholesaler, or commercial buyer routes, redirect to farmer panel
       if ((pathname.startsWith("/") && !pathname.startsWith("/farmer") && !isPublicRoute) || 
-          pathname.startsWith("/wholesaler")) {
+          pathname.startsWith("/wholesaler") || pathname.startsWith("/commercial-buyer")) {
         return NextResponse.redirect(new URL("/farmer", request.url));
       }
       // If accessing signin with valid token, redirect to farmer panel
       if (isPublicRoute && pathname.startsWith("/signin")) {
         return NextResponse.redirect(new URL("/farmer", request.url));
       }
-    } 
-    // If user is ADMIN, ensure they're not accessing wholesaler or farmer routes
+    }
+    // If user is COMMERCIAL_BUYER, redirect to commercial buyer panel
+    else if (userType === "COMMERCIAL_BUYER" || userType === "commercial_buyer" || userType === "COMMERCIALBUYER" || userType === "commercialBuyer") {
+      // If accessing admin, wholesaler, or farmer routes, redirect to commercial buyer panel
+      if ((pathname.startsWith("/") && !pathname.startsWith("/commercial-buyer") && !isPublicRoute) || 
+          pathname.startsWith("/wholesaler") || pathname.startsWith("/farmer")) {
+        return NextResponse.redirect(new URL("/commercial-buyer", request.url));
+      }
+      // If accessing signin with valid token, redirect to commercial buyer panel
+      if (isPublicRoute && pathname.startsWith("/signin")) {
+        return NextResponse.redirect(new URL("/commercial-buyer", request.url));
+      }
+    }
+    // If user is ADMIN, ensure they're not accessing other user type routes
     else {
-      if (pathname.startsWith("/wholesaler") || pathname.startsWith("/farmer")) {
+      if (pathname.startsWith("/wholesaler") || pathname.startsWith("/farmer") || pathname.startsWith("/commercial-buyer")) {
         return NextResponse.redirect(new URL("/", request.url));
       }
       // If accessing login/signup with valid token cookie, redirect to dashboard
