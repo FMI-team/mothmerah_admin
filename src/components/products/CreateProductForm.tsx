@@ -78,7 +78,7 @@ export default function CreateProductForm({
     setIsLoadingCategories(true);
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("http://127.0.0.1:8000/api/v1/categories", {
+      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/categories", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -260,7 +260,7 @@ export default function CreateProductForm({
         formData.append("image", image);
       }
 
-      const response = await fetch("http://127.0.0.1:8000/api/v1", {
+      const response = await fetch("https://api-testing.mothmerah.sa/api/v1", {
         method: "POST",
         headers: {
           ...authHeader,
