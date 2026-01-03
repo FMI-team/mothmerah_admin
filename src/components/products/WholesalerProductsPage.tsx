@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { MoreDotIcon, DownloadIcon, ArrowUpIcon, CalenderIcon } from "@/icons";
+import { MoreDotIcon, DownloadIcon, ArrowUpIcon, CalenderIcon, PlusIcon } from "@/icons";
 import Badge from "../ui/badge/Badge";
 import {
   Table,
@@ -13,6 +13,8 @@ import {
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { getAuthHeader } from "@/lib/auth";
+import Button from "../ui/button/Button";
+import CreateProductForm from "./CreateProductForm";
 
 // ------------- API Types -------------
 
@@ -194,6 +196,7 @@ export default function WholesalerProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isCreateProductModalOpen, setIsCreateProductModalOpen] = useState(false);
   
   const itemsPerPage = 6;
 
@@ -509,7 +512,15 @@ export default function WholesalerProductsPage() {
 
       {/* Table */}
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/3 sm:px-6">
-        <div className="mb-4 flex items-center justify-end">
+        <div className="mb-4 flex items-center justify-between">
+          <Button
+            size="sm"
+            className="bg-purple-500 hover:bg-purple-600"
+            onClick={() => setIsCreateProductModalOpen(true)}
+          >
+            <PlusIcon className="w-4 h-4 ml-2" />
+            إنشاء منتج جديد
+          </Button>
           <button
             onClick={handleExportCSV}
             className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
@@ -755,6 +766,16 @@ export default function WholesalerProductsPage() {
           </div>
         )}
       </div>
+
+      {/* Create Product Modal */}
+      <CreateProductForm
+        isOpen={isCreateProductModalOpen}
+        onClose={() => setIsCreateProductModalOpen(false)}
+        onSuccess={() => {
+          // Refresh products list after successful creation
+          fetchProducts();
+        }}
+      />
     </div>
   );
 }
