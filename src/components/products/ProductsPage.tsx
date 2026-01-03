@@ -573,7 +573,7 @@ export default function ProductsPage() {
                       />
                       <div className="h-10 w-10 overflow-hidden rounded-lg bg-gray-100">
                         {/* Placeholder product image */}
-                        <div className="h-full w-full bg-gradient-to-tr from-yellow-400 to-orange-500" />
+                        <div className="h-full w-full bg-linear-to-tr from-yellow-400 to-orange-500" />
                       </div>
                     </div>
                   </TableCell>
