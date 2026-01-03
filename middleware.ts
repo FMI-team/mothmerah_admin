@@ -2,6 +2,44 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 /**
+ * Decode JWT token (basic decoding without verification)
+ * Works in Edge Runtime
+ */
+function decodeToken(token: string): Record<string, any> | null {
+  try {
+    const base64Url = token.split(".")[1];
+    if (!base64Url) return null;
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    // Use atob for Edge Runtime compatibility
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error("Error decoding token:", error);
+    return null;
+  }
+}
+
+/**
+ * Get user type from token
+ */
+function getUserTypeFromToken(token: string): string | null {
+  const decoded = decodeToken(token);
+  if (!decoded) return null;
+
+  return (
+    (decoded.user_type as string | undefined) ||
+    (decoded.userType as string | undefined) ||
+    (decoded.user_type_name as string | undefined) ||
+    null
+  );
+}
+
+/**
  * Middleware to check authentication for protected routes
  * Note: This provides basic server-side protection.
  * Client-side token expiration is handled by AuthGuard component.
@@ -38,9 +76,43 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // If accessing login/signup with valid token cookie, redirect to dashboard
-  if (isPublicRoute && pathname.startsWith("/signin") && token) {
-    return NextResponse.redirect(new URL("/", request.url));
+  // If we have a token, check user type and route accordingly
+  if (token) {
+    const userType = getUserTypeFromToken(token);
+
+    // If user is WHOLESALER, redirect to wholesaler panel
+    if (userType === "WHOLESALER" || userType === "wholesaler") {
+      // If accessing admin or farmer routes, redirect to wholesaler panel
+      if (pathname.startsWith("/") && !pathname.startsWith("/wholesaler") && !isPublicRoute) {
+        return NextResponse.redirect(new URL("/wholesaler", request.url));
+      }
+      // If accessing signin with valid token, redirect to wholesaler panel
+      if (isPublicRoute && pathname.startsWith("/signin")) {
+        return NextResponse.redirect(new URL("/wholesaler", request.url));
+      }
+    } 
+    // If user is FARMER, redirect to farmer panel
+    else if (userType === "FARMER" || userType === "farmer") {
+      // If accessing admin or wholesaler routes, redirect to farmer panel
+      if ((pathname.startsWith("/") && !pathname.startsWith("/farmer") && !isPublicRoute) || 
+          pathname.startsWith("/wholesaler")) {
+        return NextResponse.redirect(new URL("/farmer", request.url));
+      }
+      // If accessing signin with valid token, redirect to farmer panel
+      if (isPublicRoute && pathname.startsWith("/signin")) {
+        return NextResponse.redirect(new URL("/farmer", request.url));
+      }
+    } 
+    // If user is ADMIN, ensure they're not accessing wholesaler or farmer routes
+    else {
+      if (pathname.startsWith("/wholesaler") || pathname.startsWith("/farmer")) {
+        return NextResponse.redirect(new URL("/", request.url));
+      }
+      // If accessing login/signup with valid token cookie, redirect to dashboard
+      if (isPublicRoute && pathname.startsWith("/signin")) {
+        return NextResponse.redirect(new URL("/", request.url));
+      }
+    }
   }
 
   return NextResponse.next();

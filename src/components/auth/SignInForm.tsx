@@ -7,7 +7,7 @@ import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "@/icons";
 import Link from "next/link";
 import React, { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { storeAuthTokens } from "@/lib/auth";
+import { storeAuthTokens, fetchAndStoreUserInfo } from "@/lib/auth";
 
 export default function SignInForm() {
   const router = useRouter();
@@ -24,7 +24,7 @@ export default function SignInForm() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/auth/login", {
+      const response = await fetch("http://127.0.0.1:8000/api/v1/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -56,10 +56,26 @@ export default function SignInForm() {
           refresh_token: data.refresh_token,
           token_type: data.token_type,
         });
-      }
 
-      // Redirect to dashboard
-      router.push("/");
+        // Fetch user info from API to get user type
+        try {
+          const userType = await fetchAndStoreUserInfo();
+
+          // Redirect based on user type
+          if (userType === "WHOLESALER" || userType === "wholesaler") {
+            router.push("/wholesaler");
+          } else if (userType === "FARMER" || userType === "farmer") {
+            router.push("/farmer");
+          } else {
+            router.push("/");
+          }
+        } catch {
+          // If API call fails, default to admin dashboard
+          router.push("/");
+        }
+      } else {
+        router.push("/");
+      }
     } catch (err) {
       console.error("Login error:", err);
       setError(

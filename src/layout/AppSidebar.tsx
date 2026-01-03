@@ -1,9 +1,10 @@
 "use client";
-import React, { useEffect, useRef, useState,useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
+import { getUserType, fetchAndStoreUserInfo } from "@/lib/auth";
 import {
   ChevronDownIcon,
   GridIcon,
@@ -16,6 +17,8 @@ import {
   DocsIcon,
   TaskIcon,
   ChatIcon,
+  BoltIcon,
+  BoxCubeIcon,
 } from "../icons/index";
 
 type NavItem = {
@@ -25,7 +28,8 @@ type NavItem = {
   subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
 };
 
-const navItems: NavItem[] = [
+// Admin navigation items (full access)
+const adminNavItems: NavItem[] = [
   {
     icon: <GridIcon />,
     name: "لوحة التحكم",
@@ -33,13 +37,23 @@ const navItems: NavItem[] = [
   },
   {
     icon: <GroupIcon />,
-    name: "ادارة المستخدمين",
+    name: "ادارة المستخدمين", // Admin only
     path: "/users",
   },
   {
     icon: <BoxIcon />,
     name: "كتالوج المنتجات",
     path: "/products",
+  },
+  {
+    icon: <BoltIcon />,
+    name: "ادارة المزادات",
+    path: "/auctions",
+  },
+  {
+    icon: <BoxCubeIcon />,
+    name: "ادارة المخازن",
+    path: "/warehouses",
   },
   {
     icon: <DocsIcon />,
@@ -53,18 +67,81 @@ const navItems: NavItem[] = [
   },
   {
     icon: <PieChartIcon />,
-    name: "التقارير المالية",
+    name: "التقارير المالية", // Admin only
     path: "/reports",
   },
   {
     icon: <PlugInIcon />,
-    name: "اعدادات المنصة",
+    name: "اعدادات المنصة", // Admin only
     path: "/settings",
   },
   {
     icon: <ChatIcon />,
-    name: "تذاكر الدعم",
+    name: "تذاكر الدعم", // Admin only
     path: "/support",
+  },
+];
+
+// Wholesaler navigation items (no user management, reports, settings, support)
+const wholesalerNavItems: NavItem[] = [
+  {
+    icon: <GridIcon />,
+    name: "لوحة التحكم",
+    path: "/wholesaler",
+  },
+  {
+    icon: <BoxIcon />,
+    name: "كتالوج المنتجات",
+    path: "/wholesaler/products",
+  },
+  {
+    icon: <BoltIcon />,
+    name: "ادارة المزادات",
+    path: "/wholesaler/auctions",
+  },
+  {
+    icon: <BoxCubeIcon />,
+    name: "ادارة المخازن",
+    path: "/wholesaler/warehouses",
+  },
+  {
+    icon: <DocsIcon />,
+    name: "ادارة الفواتير",
+    path: "/wholesaler/invoices",
+  }
+];
+
+// Farmer navigation items (limited access - products, auctions, warehouses, invoices, claims)
+const farmerNavItems: NavItem[] = [
+  {
+    icon: <GridIcon />,
+    name: "لوحة التحكم",
+    path: "/farmer",
+  },
+  {
+    icon: <BoxIcon />,
+    name: "كتالوج المنتجات",
+    path: "/farmer/products",
+  },
+  {
+    icon: <BoltIcon />,
+    name: "ادارة المزادات",
+    path: "/farmer/auctions",
+  },
+  {
+    icon: <BoxCubeIcon />,
+    name: "ادارة المخزون",
+    path: "/farmer/warehouses",
+  },
+  {
+    icon: <DocsIcon />,
+    name: "ادارة الفواتير",
+    path: "/farmer/invoices",
+  },
+  {
+    icon: <TaskIcon />,
+    name: "ادارة المطالبات",
+    path: "/farmer/claims",
   },
 ];
 
@@ -73,6 +150,82 @@ const othersItems: NavItem[] = [];
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
+  const [userType, setUserType] = useState<string | null>(null);
+
+  // Get user type on mount - fetch from API if not already stored
+  useEffect(() => {
+    const loadUserType = async () => {
+      let type = getUserType();
+      // If user type is not in localStorage, fetch from API
+      if (!type) {
+        type = await fetchAndStoreUserInfo();
+      }
+      setUserType(type);
+    };
+    loadUserType();
+  }, []);
+
+  // Determine which nav items to use based on user type
+  const navItems = useMemo(() => {
+    if (userType === "WHOLESALER" || userType === "wholesaler") {
+      return wholesalerNavItems;
+    } else if (userType === "FARMER" || userType === "farmer") {
+      return farmerNavItems;
+    } else {
+      return adminNavItems;
+    }
+  }, [userType]);
+
+  const [openSubmenu, setOpenSubmenu] = useState<{
+    type: "main" | "others";
+    index: number;
+  } | null>(null);
+  const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>(
+    {}
+  );
+  const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // Check if a path is active - since navItems are already filtered by user type,
+  // we just need to check if the current pathname matches the path
+  const isActive = useCallback((path: string) => {
+    // Exact match
+    if (path === pathname) {
+      return true;
+    }
+    
+    // Handle root paths
+    // For admin "/" - only match if pathname is exactly "/"
+    if (path === "/") {
+      return pathname === "/";
+    }
+    
+    // For wholesaler "/wholesaler" - match if pathname is exactly "/wholesaler" or starts with "/wholesaler/" but has no additional path segments
+    if (path === "/wholesaler") {
+      return pathname === "/wholesaler" || pathname === "/wholesaler/";
+    }
+    
+    // For farmer "/farmer" - match if pathname is exactly "/farmer" or starts with "/farmer/" but has no additional path segments
+    if (path === "/farmer") {
+      return pathname === "/farmer" || pathname === "/farmer/";
+    }
+    
+    // For other paths, check if pathname starts with the path followed by "/" or is exactly the path
+    // This ensures /products matches /products but not /products-something
+    return pathname === path || pathname.startsWith(path + "/");
+  }, [pathname]);
+
+  const handleSubmenuToggle = (index: number, menuType: "main" | "others") => {
+    setOpenSubmenu((prevOpenSubmenu) => {
+      if (
+        prevOpenSubmenu &&
+        prevOpenSubmenu.type === menuType &&
+        prevOpenSubmenu.index === index
+      ) {
+        return null;
+      }
+      return { type: menuType, index };
+    });
+  };
 
   const renderMenuItems = (
     navItems: NavItem[],
@@ -200,24 +353,12 @@ const AppSidebar: React.FC = () => {
     </ul>
   );
 
-  const [openSubmenu, setOpenSubmenu] = useState<{
-    type: "main" | "others";
-    index: number;
-  } | null>(null);
-  const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>(
-    {}
-  );
-  const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
-  // const isActive = (path: string) => path === pathname;
-   const isActive = useCallback((path: string) => path === pathname, [pathname]);
-
   useEffect(() => {
     // Check if the current path matches any submenu item
     let submenuMatched = false;
     ["main", "others"].forEach((menuType) => {
       const items = menuType === "main" ? navItems : othersItems;
-      items.forEach((nav, index) => {
+      items.forEach((nav: NavItem, index: number) => {
         if (nav.subItems) {
           nav.subItems.forEach((subItem) => {
             if (isActive(subItem.path)) {
@@ -236,7 +377,7 @@ const AppSidebar: React.FC = () => {
     if (!submenuMatched) {
       setOpenSubmenu(null);
     }
-  }, [pathname,isActive]);
+  }, [pathname, isActive, navItems]);
 
   useEffect(() => {
     // Set the height of the submenu items when the submenu is opened
@@ -250,19 +391,6 @@ const AppSidebar: React.FC = () => {
       }
     }
   }, [openSubmenu]);
-
-  const handleSubmenuToggle = (index: number, menuType: "main" | "others") => {
-    setOpenSubmenu((prevOpenSubmenu) => {
-      if (
-        prevOpenSubmenu &&
-        prevOpenSubmenu.type === menuType &&
-        prevOpenSubmenu.index === index
-      ) {
-        return null;
-      }
-      return { type: menuType, index };
-    });
-  };
 
   return (
     <aside
@@ -284,7 +412,15 @@ const AppSidebar: React.FC = () => {
           !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
         }`}
       >
-        <Link href="/">
+        <Link 
+          href={
+            userType === "WHOLESALER" || userType === "wholesaler"
+              ? "/wholesaler"
+              : userType === "FARMER" || userType === "farmer"
+              ? "/farmer"
+              : "/"
+          }
+        >
           {isExpanded || isHovered || isMobileOpen ? (
             <>
               <Image
@@ -326,7 +462,13 @@ const AppSidebar: React.FC = () => {
                 {isExpanded || isHovered || isMobileOpen ? (
                   <>
                     <UserCircleIcon className="w-4 h-4" />
-                    <span className="text-sm font-medium">مسؤول النظام</span>
+                    <span className="text-sm font-medium">
+                      {userType === "WHOLESALER" || userType === "wholesaler"
+                        ? "تاجر الجملة"
+                        : userType === "FARMER" || userType === "farmer"
+                        ? "مزارع"
+                        : "مسؤول النظام"}
+                    </span>
                   </>
                 ) : (
                   <UserCircleIcon className="w-4 h-4 mx-auto" />

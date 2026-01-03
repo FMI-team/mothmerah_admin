@@ -86,7 +86,7 @@ export function getTokenType(): string {
 /**
  * Decode JWT token (basic decoding without verification)
  */
-function decodeToken(token: string): DecodedToken | null {
+export function decodeToken(token: string): DecodedToken | null {
   try {
     const base64Url = token.split(".")[1];
     if (!base64Url) return null;
@@ -139,6 +139,7 @@ export function isTokenExpired(): boolean {
 export interface AuthUser {
   fullName?: string;
   email?: string;
+  userType?: string;
 }
 
 export function getAuthUser(): AuthUser | null {
@@ -167,10 +168,81 @@ export function getAuthUser(): AuthUser | null {
     fullName = email.split("@")[0];
   }
 
+  // Extract user_type from token (could be user_type, userType, or user_type_name)
+  const userType =
+    (decoded.user_type as string | undefined) ||
+    (decoded.userType as string | undefined) ||
+    (decoded.user_type_name as string | undefined);
+
   return {
     fullName: fullName || undefined,
     email: email || undefined,
+    userType: userType || undefined,
   };
+}
+
+/**
+ * Fetch user info from API and store user type
+ */
+export async function fetchAndStoreUserInfo(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  const token = getAccessToken();
+  if (!token) return null;
+
+  try {
+    const response = await fetch("http://127.0.0.1:8000/api/v1/users/me", {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(),
+      },
+    });
+
+    if (!response.ok) {
+      console.error("Failed to fetch user info");
+      return null;
+    }
+
+    const userData = await response.json();
+    const userType = userData.user_type?.user_type_name_key || null;
+
+    // Store user type in localStorage for quick access
+    if (userType) {
+      localStorage.setItem("user_type", userType);
+    }
+
+    return userType;
+  } catch (error) {
+    console.error("Error fetching user info:", error);
+    return null;
+  }
+}
+
+/**
+ * Get user type - first try from localStorage, then from token as fallback
+ */
+export function getUserType(): string | null {
+  if (typeof window === "undefined") return null;
+
+  // First try to get from localStorage (from API)
+  const storedUserType = localStorage.getItem("user_type");
+  if (storedUserType) {
+    return storedUserType;
+  }
+
+  // Fallback to token decoding if localStorage doesn't have it
+  const token = getAccessToken();
+  if (!token) return null;
+
+  const decoded = decodeToken(token);
+  if (!decoded) return null;
+
+  return (
+    (decoded.user_type as string | undefined) ||
+    (decoded.userType as string | undefined) ||
+    (decoded.user_type_name as string | undefined) ||
+    null
+  );
 }
 
 /**
@@ -194,8 +266,9 @@ export function clearAuthTokens(): void {
   deleteCookie("token_type");
   deleteCookie("expires_at");
   
-  // Also clear user data from localStorage if it exists
+  // Clear user data from localStorage
   localStorage.removeItem("user");
+  localStorage.removeItem("user_type");
 }
 
 /**
