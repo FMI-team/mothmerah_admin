@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Image from "next/image";
 import { MoreDotIcon, DownloadIcon, ArrowUpIcon, CalenderIcon, PlusIcon } from "@/icons";
 import Badge from "../ui/badge/Badge";
 import {
@@ -129,8 +130,7 @@ const mapApiProductToProduct = (api: ApiProduct): Product => {
     api.packaging_options?.[0];
 
   const availableQuantity = defaultPackaging
-    ? `${defaultPackaging.quantity_in_packaging} ${
-        defaultPackaging.unit_of_measure?.unit_abbreviation_key ?? ""
+    ? `${defaultPackaging.quantity_in_packaging} ${defaultPackaging.unit_of_measure?.unit_abbreviation_key ?? ""
       }`.trim()
     : `1 ${api.unit_of_measure?.unit_abbreviation_key ?? ""}`.trim();
 
@@ -197,7 +197,7 @@ export default function WholesalerProductsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateProductModalOpen, setIsCreateProductModalOpen] = useState(false);
-  
+
   const itemsPerPage = 6;
 
   const fetchProducts = useCallback(async () => {
@@ -206,7 +206,7 @@ export default function WholesalerProductsPage() {
 
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/me", {
+      const response = await fetch("http://127.0.0.1:8000/api/v1/me", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -237,7 +237,7 @@ export default function WholesalerProductsPage() {
 
   // Filter products based on search and filters
   let filteredProducts = products;
-  
+
   if (searchQuery) {
     filteredProducts = filteredProducts.filter((product) =>
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -618,107 +618,110 @@ export default function WholesalerProductsPage() {
               </TableHeader>
               <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {paginatedProducts.map((product) => (
-                <TableRow
-                  key={product.id}
-                  className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                >
-                  <TableCell className="py-3">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedProducts.includes(product.id)}
-                        onChange={() => toggleProductSelection(product.id)}
-                        className="w-4 h-4 text-brand-500 border-gray-300 rounded focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800"
-                      />
-                      <div className="h-10 w-10 overflow-hidden rounded-lg bg-gray-100">
-                        {product.imageUrl ? (
-                          <img
-                            src={product.imageUrl}
-                            alt={product.name}
-                            className="h-full w-full object-cover"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = "none";
-                              if (target.parentElement) {
-                                target.parentElement.className += " bg-linear-to-tr from-yellow-400 to-orange-500";
-                              }
-                            }}
-                          />
-                        ) : (
-                          <div className="h-full w-full bg-linear-to-tr from-yellow-400 to-orange-500" />
-                        )}
+                  <TableRow
+                    key={product.id}
+                    className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                  >
+                    <TableCell className="py-3">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedProducts.includes(product.id)}
+                          onChange={() => toggleProductSelection(product.id)}
+                          className="w-4 h-4 text-brand-500 border-gray-300 rounded focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800"
+                        />
+                        <div className="h-10 w-10 overflow-hidden rounded-lg bg-gray-100">
+                          {product.imageUrl ? (
+                            <Image
+                              src={product.imageUrl}
+                              alt={product.name}
+                              width={40}
+                              height={40}
+                              className="h-full w-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = "none";
+                                if (target.parentElement) {
+                                  target.parentElement.className += " bg-linear-to-tr from-yellow-400 to-orange-500";
+                                }
+                              }}
+                              unoptimized
+                            />
+                          ) : (
+                            <div className="h-full w-full bg-linear-to-tr from-yellow-400 to-orange-500" />
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                    {product.name}
-                  </TableCell>
-                  <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                    {product.category}
-                  </TableCell>
-                  <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                    {product.owner}
-                  </TableCell>
-                  <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                    {product.availableQuantity}
-                  </TableCell>
-                  <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                    {product.saleType}
-                  </TableCell>
-                  <TableCell className="py-3">
-                    <Badge size="sm" color={getStatusBadgeColor(product.status)}>
-                      {product.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                    {product.addedDate}
-                  </TableCell>
-                  <TableCell className="py-3">
-                    <div className="relative">
-                      <button
-                        onClick={() =>
-                          setActionDropdownOpen(
-                            actionDropdownOpen === product.id ? null : product.id
-                          )
-                        }
-                        className="p-1.5 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-                      >
-                        <MoreDotIcon className="w-5 h-5" />
-                      </button>
-                      <Dropdown
-                        isOpen={actionDropdownOpen === product.id}
-                        onClose={() => setActionDropdownOpen(null)}
-                        className="absolute left-0 mt-2 w-40 p-2 z-50"
-                      >
-                        <DropdownItem
-                          onItemClick={() => {
-                            setActionDropdownOpen(null);
-                            router.push(`${pathname}/${product.id}`);
-                          }}
-                          className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                    </TableCell>
+                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
+                      {product.name}
+                    </TableCell>
+                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
+                      {product.category}
+                    </TableCell>
+                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
+                      {product.owner}
+                    </TableCell>
+                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
+                      {product.availableQuantity}
+                    </TableCell>
+                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
+                      {product.saleType}
+                    </TableCell>
+                    <TableCell className="py-3">
+                      <Badge size="sm" color={getStatusBadgeColor(product.status)}>
+                        {product.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
+                      {product.addedDate}
+                    </TableCell>
+                    <TableCell className="py-3">
+                      <div className="relative">
+                        <button
+                          onClick={() =>
+                            setActionDropdownOpen(
+                              actionDropdownOpen === product.id ? null : product.id
+                            )
+                          }
+                          className="p-1.5 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
                         >
-                          عرض التفاصيل
-                        </DropdownItem>
-                        <DropdownItem
-                          onItemClick={() => {
-                            setActionDropdownOpen(null);
-                          }}
-                          className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                          <MoreDotIcon className="w-5 h-5" />
+                        </button>
+                        <Dropdown
+                          isOpen={actionDropdownOpen === product.id}
+                          onClose={() => setActionDropdownOpen(null)}
+                          className="absolute left-0 mt-2 w-40 p-2 z-50"
                         >
-                          تعديل
-                        </DropdownItem>
-                        <DropdownItem
-                          onItemClick={() => {
-                            setActionDropdownOpen(null);
-                          }}
-                          className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-red-300"
-                        >
-                          حذف
-                        </DropdownItem>
-                      </Dropdown>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                          <DropdownItem
+                            onItemClick={() => {
+                              setActionDropdownOpen(null);
+                              router.push(`${pathname}/${product.id}`);
+                            }}
+                            className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                          >
+                            عرض التفاصيل
+                          </DropdownItem>
+                          <DropdownItem
+                            onItemClick={() => {
+                              setActionDropdownOpen(null);
+                            }}
+                            className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                          >
+                            تعديل
+                          </DropdownItem>
+                          <DropdownItem
+                            onItemClick={() => {
+                              setActionDropdownOpen(null);
+                            }}
+                            className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-red-300"
+                          >
+                            حذف
+                          </DropdownItem>
+                        </Dropdown>
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 ))}
               </TableBody>
             </Table>
@@ -746,11 +749,10 @@ export default function WholesalerProductsPage() {
                   <button
                     key={page}
                     onClick={() => setCurrentPage(page)}
-                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                      currentPage === page
-                        ? "bg-purple-500 text-white"
-                        : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                    }`}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${currentPage === page
+                      ? "bg-purple-500 text-white"
+                      : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                      }`}
                   >
                     {page}
                   </button>

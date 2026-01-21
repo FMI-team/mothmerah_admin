@@ -5,6 +5,7 @@ import { getAuthHeader } from "@/lib/auth";
 import UserMetaCard from "./UserMetaCard";
 import UserInfoCard from "./UserInfoCard";
 import UserAddressCard from "./UserAddressCard";
+import { useTranslations } from "@/lib/translations";
 
 interface Translation {
   language_code: string;
@@ -83,6 +84,7 @@ export interface UserDetails {
 
 export default function UserProfileView() {
   const searchParams = useSearchParams();
+  const { t } = useTranslations('ar');
   const userId = searchParams.get("userId");
   const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -91,7 +93,7 @@ export default function UserProfileView() {
   useEffect(() => {
     const fetchUserDetails = async () => {
       if (!userId) {
-        setError("معرف المستخدم غير متوفر");
+        setError(t("users.profile.errors.userIdMissing"));
         setIsLoading(false);
         return;
       }
@@ -102,7 +104,7 @@ export default function UserProfileView() {
       try {
         const authHeader = getAuthHeader();
         const response = await fetch(
-          `https://api-testing.mothmerah.sa/admin/users/${userId}`,
+          `http://127.0.0.1:8000/admin/users/${userId}`,
           {
             method: "GET",
             headers: {
@@ -113,7 +115,7 @@ export default function UserProfileView() {
         );
 
         if (!response.ok) {
-          throw new Error("فشل في جلب تفاصيل المستخدم");
+          throw new Error(t("users.profile.errors.fetchFailed"));
         }
 
         const data: UserDetails = await response.json();
@@ -121,7 +123,7 @@ export default function UserProfileView() {
       } catch (err) {
         console.error("Error fetching user details:", err);
         setError(
-          err instanceof Error ? err.message : "حدث خطأ في جلب تفاصيل المستخدم"
+          err instanceof Error ? err.message : t("users.profile.errors.fetchError")
         );
       } finally {
         setIsLoading(false);
@@ -129,13 +131,13 @@ export default function UserProfileView() {
     };
 
     fetchUserDetails();
-  }, [userId]);
+  }, [userId, t]);
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-gray-500 dark:text-gray-400">
-          جاري تحميل معلومات المستخدم...
+          {t("users.profile.loading")}
         </div>
       </div>
     );
@@ -152,7 +154,7 @@ export default function UserProfileView() {
   if (!userDetails) {
     return (
       <div className="p-4 text-sm text-gray-500 dark:text-gray-400">
-        لا توجد معلومات متاحة
+        {t("users.profile.noData")}
       </div>
     );
   }

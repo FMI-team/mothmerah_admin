@@ -1,0 +1,150 @@
+{
+  "auth": {
+    "signIn": {
+      "title": "تسجيل الدخول",
+      "subtitle": "أدخل رقم الهاتف وكلمة المرور لتسجيل الدخول!",
+      "signInWithGoogle": "تسجيل الدخول باستخدام Google",
+      "signInWithX": "تسجيل الدخول باستخدام X",
+      "or": "أو",
+      "phoneNumber": "رقم الهاتف",
+      "password": "كلمة المرور",
+      "keepMeLoggedIn": "إبقني مسجلاً",
+      "forgotPassword": "نسيت كلمة المرور؟",
+      "signInButton": "تسجيل الدخول",
+      "signingIn": "جاري تسجيل الدخول...",
+      "enterPhoneNumber": "أدخل رقم الهاتف",
+      "enterPassword": "أدخل كلمة المرور",
+      "backToDashboard": "العودة إلى لوحة التحكم",
+      "errors": {
+        "loginFailed": "فشل تسجيل الدخول. يرجى التحقق من بيانات الاعتماد الخاصة بك.",
+        "errorOccurred": "حدث خطأ. يرجى المحاولة مرة أخرى."
+      }
+    }
+  },
+  "users": {
+    "management": {
+      "title": "ادارة المستخدمين",
+      "description": "ادارة حسابات المستخدمين والادوار والاذونات",
+      "addNewUser": "إضافة مستخدم جديد (قريبا)",
+      "tableHeaders": {
+        "user": "المستخدم",
+        "role": "الدور",
+        "lastLogin": "اخر تسجيل دخول",
+        "status": "الحالة",
+        "actions": "الاجراءات"
+      },
+      "noUsers": "لا يوجد مستخدمين",
+      "neverLoggedIn": "لم يسجل دخول",
+      "loading": "جاري التحميل...",
+      "actions": {
+        "viewDetails": "عرض التفاصيل",
+        "changeStatus": "تعديل الحالة",
+        "delete": "حذف"
+      },
+      "delete": {
+        "confirm": "هل أنت متأكد من حذف المستخدم",
+        "failed": "فشل في حذف المستخدم",
+        "error": "حدث خطأ أثناء حذف المستخدم"
+      },
+      "statusModal": {
+        "title": "تعديل حالة المستخدم",
+        "user": "المستخدم:",
+        "currentStatus": "الحالة الحالية:",
+        "newStatus": "الحالة الجديدة",
+        "reasonLabel": "سبب التغيير (اختياري)",
+        "reasonPlaceholder": "أدخل سبب تغيير الحالة...",
+        "selectStatus": "اختر الحالة",
+        "cancel": "إلغاء",
+        "updating": "جاري التحديث...",
+        "update": "تحديث الحالة"
+      },
+      "errors": {
+        "fetchFailed": "حدث خطأ في جلب البيانات",
+        "selectNewStatus": "يرجى اختيار حالة جديدة",
+        "changeStatusFailed": "فشل في تغيير حالة المستخدم",
+        "changeStatusError": "حدث خطأ أثناء تغيير حالة المستخدم",
+        "fetchStatusesError": "حدث خطأ في جلب حالات التحقق"
+      }
+    },
+    "profile": {
+      "loading": "جاري تحميل معلومات المستخدم...",
+      "noData": "لا توجد معلومات متاحة",
+      "errors": {
+        "userIdMissing": "معرف المستخدم غير متوفر",
+        "fetchFailed": "فشل في جلب تفاصيل المستخدم",
+        "fetchError": "حدث خطأ في جلب تفاصيل المستخدم"
+      },
+      "metaCard": {
+        "edit": "تعديل",
+        "editModal": {
+          "title": "تعديل المعلومات الشخصية",
+          "description": "قم بتحديث تفاصيلك للحفاظ على ملفك الشخصي محدثًا.",
+          "socialLinks": "روابط التواصل الاجتماعي",
+          "personalInfo": "المعلومات الشخصية",
+          "facebook": "Facebook",
+          "x": "X.com",
+          "linkedin": "Linkedin",
+          "instagram": "Instagram",
+          "firstName": "الاسم الأول",
+          "lastName": "الاسم الأخير",
+          "email": "البريد الإلكتروني",
+          "phone": "الهاتف",
+          "bio": "السيرة الذاتية",
+          "close": "إغلاق",
+          "saveChanges": "حفظ التغييرات"
+        }
+      },
+      "infoCard": {
+        "title": "المعلومات الشخصية",
+        "firstName": "الاسم الأول",
+        "lastName": "الاسم الأخير",
+        "email": "البريد الإلكتروني",
+        "phoneNumber": "رقم الهاتف",
+        "userId": "معرف المستخدم",
+        "lastLogin": "آخر تسجيل دخول",
+        "neverLoggedIn": "لم يسجل دخول",
+        "notAvailable": "غير متوفر",
+        "edit": "تعديل",
+        "editModal": {
+          "title": "تعديل المعلومات الشخصية",
+          "description": "قم بتحديث تفاصيلك للحفاظ على ملفك الشخصي محدثًا.",
+          "socialLinks": "روابط التواصل الاجتماعي",
+          "personalInfo": "المعلومات الشخصية",
+          "facebook": "Facebook",
+          "x": "X.com",
+          "linkedin": "Linkedin",
+          "instagram": "Instagram",
+          "firstName": "الاسم الأول",
+          "lastName": "الاسم الأخير",
+          "email": "البريد الإلكتروني",
+          "phone": "الهاتف",
+          "bio": "السيرة الذاتية",
+          "close": "إغلاق",
+          "saveChanges": "حفظ التغييرات"
+        }
+      },
+      "addressCard": {
+        "title": "معلومات الحساب والتحقق",
+        "defaultRole": "الدور الافتراضي",
+        "userType": "نوع المستخدم",
+        "verificationStatus": "حالة التحقق",
+        "createdAt": "تاريخ الإنشاء",
+        "phoneVerifiedAt": "تاريخ التحقق من الهاتف",
+        "emailVerifiedAt": "تاريخ التحقق من البريد",
+        "notVerified": "غير محقق",
+        "notAvailable": "غير متوفر",
+        "edit": "تعديل",
+        "editModal": {
+          "title": "تعديل العنوان",
+          "description": "قم بتحديث تفاصيلك للحفاظ على ملفك الشخصي محدثًا.",
+          "country": "الدولة",
+          "cityState": "المدينة/الولاية",
+          "postalCode": "الرمز البريدي",
+          "taxId": "TAX ID",
+          "close": "إغلاق",
+          "saveChanges": "حفظ التغييرات"
+        }
+      }
+    }
+  }
+}

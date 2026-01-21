@@ -21,7 +21,7 @@ export default function UserDropdown() {
         if (!authHeader.Authorization) return;
 
         const res = await fetch(
-          "https://api-testing.mothmerah.sa/api/v1/users/me",
+          "http://127.0.0.1:8000/api/v1/users/me",
           {
             method: "GET",
             headers: {
@@ -84,7 +84,7 @@ export default function UserDropdown() {
   return (
     <div className="relative">
       <button
-        onClick={toggleDropdown} 
+        onClick={toggleDropdown}
         className="flex items-center text-gray-700 dark:text-gray-400 dropdown-toggle"
       >
         <span className="mr-3 overflow-hidden rounded-full h-11 w-11">
@@ -101,9 +101,8 @@ export default function UserDropdown() {
         </span>
 
         <svg
-          className={`stroke-gray-500 dark:stroke-gray-400 transition-transform duration-200 ${
-            isOpen ? "rotate-180" : ""
-          }`}
+          className={`stroke-gray-500 dark:stroke-gray-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""
+            }`}
           width="18"
           height="20"
           viewBox="0 0 18 20"

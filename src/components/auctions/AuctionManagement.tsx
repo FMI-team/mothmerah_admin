@@ -177,7 +177,7 @@ export default function AuctionManagement() {
   const [isLoadingStatuses, setIsLoadingStatuses] = useState(false);
   const [auctionTypes, setAuctionTypes] = useState<AuctionType[]>([]);
   const [isLoadingTypes, setIsLoadingTypes] = useState(false);
-  
+
   const itemsPerPage = 6;
   const totalItems = 100;
 
@@ -186,7 +186,7 @@ export default function AuctionManagement() {
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        "https://api-testing.mothmerah.sa/admin/admin/auctions/statuses",
+        "http://127.0.0.1:8000/admin/admin/auctions/statuses",
         {
           method: "GET",
           headers: {
@@ -214,7 +214,7 @@ export default function AuctionManagement() {
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        "https://api-testing.mothmerah.sa/admin/admin/auctions/types",
+        "http://127.0.0.1:8000/admin/admin/auctions/types",
         {
           method: "GET",
           headers: {
@@ -654,11 +654,10 @@ export default function AuctionManagement() {
               <button
                 key={page}
                 onClick={() => setCurrentPage(page)}
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                  currentPage === page
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${currentPage === page
                     ? "bg-purple-500 text-white"
                     : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                }`}
+                  }`}
               >
                 {page}
               </button>

@@ -16,6 +16,7 @@ import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Modal } from "../ui/modal";
 import Label from "../form/Label";
 import Button from "../ui/button/Button";
+import { useTranslations } from "@/lib/translations";
 
 interface Translation {
   language_code: string;
@@ -135,11 +136,8 @@ const getVerificationStatusArabicTranslation = (
   return "";
 };
 
-/**
- * Format date for display
- */
-const formatDate = (dateString: string | null): string => {
-  if (!dateString) return "لم يسجل دخول";
+const formatDate = (dateString: string | null, t: (key: string) => string): string => {
+  if (!dateString) return t("users.management.neverLoggedIn");
   try {
     const date = new Date(dateString);
     return new Intl.DateTimeFormat("ar-SA", {
@@ -156,11 +154,10 @@ const formatDate = (dateString: string | null): string => {
 
 export default function UserManagement() {
   const router = useRouter();
+  const { t } = useTranslations('ar');
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // const [selectedRole, setSelectedRole] = useState("الكل");
-  // const [selectedStatus, setSelectedStatus] = useState("الكل");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [actionDropdownOpen, setActionDropdownOpen] = useState<string | null>(
     null
@@ -184,7 +181,7 @@ export default function UserManagement() {
 
 
       const response = await fetch(
-        `https://api-testing.mothmerah.sa/admin/users`,
+        `http://127.0.0.1:8000/admin/users`,
         {
           method: "GET",
           headers: {
@@ -203,16 +200,15 @@ export default function UserManagement() {
     } catch (err) {
       console.error("Error fetching users:", err);
       setError(
-        err instanceof Error ? err.message : "حدث خطأ في جلب البيانات"
+        err instanceof Error ? err.message : t("users.management.errors.fetchFailed")
       );
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchUsers();
-  // }, [selectedRole, selectedStatus]);
   }, [fetchUsers]);
 
   const toggleUserSelection = (userId: string) => {
@@ -246,14 +242,14 @@ export default function UserManagement() {
   };
 
   const handleDeleteUser = async (userId: string, userName: string) => {
-    if (!confirm(`هل أنت متأكد من حذف المستخدم "${userName}"؟`)) {
+    if (!confirm(`${t("users.management.delete.confirm")} "${userName}"؟`)) {
       return;
     }
 
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        `https://api-testing.mothmerah.sa/admin/users/${userId}`,
+        `http://127.0.0.1:8000/admin/users/${userId}`,
         {
           method: "DELETE",
           headers: {
@@ -267,25 +263,22 @@ export default function UserManagement() {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
           errorData.message ||
-            errorData.detail ||
-            "فشل في حذف المستخدم"
+          errorData.detail ||
+          t("users.management.delete.failed")
         );
       }
 
-      // Remove user from list
       setUsers((prevUsers) =>
         prevUsers.filter((user) => user.user_id !== userId)
       );
-      
-      // Remove from selected users if selected
+
       setSelectedUsers((prev) => prev.filter((id) => id !== userId));
 
-      // Show success message (you can replace this with a toast notification)
       setError(null);
     } catch (err) {
       console.error("Error deleting user:", err);
       setError(
-        err instanceof Error ? err.message : "حدث خطأ أثناء حذف المستخدم"
+        err instanceof Error ? err.message : t("users.management.delete.error")
       );
     }
   };
@@ -294,7 +287,7 @@ export default function UserManagement() {
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        "https://api-testing.mothmerah.sa/admin/admin/verification/user-verification-statuses",
+        "http://127.0.0.1:8000/admin/verification/user-verification-statuses",
         {
           method: "GET",
           headers: {
@@ -315,10 +308,10 @@ export default function UserManagement() {
       setError(
         err instanceof Error
           ? err.message
-          : "حدث خطأ في جلب حالات التحقق"
+          : t("users.management.errors.fetchStatusesError")
       );
     }
-  }, []);
+  }, [t]);
 
   const handleOpenStatusModal = (user: User) => {
     setSelectedUserForStatusChange(user);
@@ -337,7 +330,7 @@ export default function UserManagement() {
 
   const handleChangeUserStatus = async () => {
     if (!selectedUserForStatusChange || !selectedStatusId) {
-      setError("يرجى اختيار حالة جديدة");
+      setError(t("users.management.errors.selectNewStatus"));
       return;
     }
 
@@ -347,7 +340,7 @@ export default function UserManagement() {
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        `https://api-testing.mothmerah.sa/admin/users/${selectedUserForStatusChange.user_id}/status`,
+        `http://127.0.0.1:8000/admin/users/${selectedUserForStatusChange.user_id}/status`,
         {
           method: "PATCH",
           headers: {
@@ -363,23 +356,21 @@ export default function UserManagement() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        
-        // Handle validation errors
+
         if (errorData.detail && Array.isArray(errorData.detail)) {
           const errorMessages = errorData.detail
             .map((err: { msg: string; loc: string[] }) => err.msg)
             .join(", ");
-          throw new Error(errorMessages || "فشل في تغيير حالة المستخدم");
+          throw new Error(errorMessages || t("users.management.errors.changeStatusFailed"));
         }
-        
+
         throw new Error(
           errorData.message ||
-            errorData.detail ||
-            "فشل في تغيير حالة المستخدم"
+          errorData.detail ||
+          t("users.management.errors.changeStatusFailed")
         );
       }
 
-      // Refresh users list to get updated status
       await fetchUsers();
       handleCloseStatusModal();
     } catch (err) {
@@ -387,7 +378,7 @@ export default function UserManagement() {
       setError(
         err instanceof Error
           ? err.message
-          : "حدث خطأ أثناء تغيير حالة المستخدم"
+          : t("users.management.errors.changeStatusError")
       );
     } finally {
       setIsChangingStatus(false);
@@ -396,83 +387,19 @@ export default function UserManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
-          ادارة المستخدمين
+          {t("users.management.title")}
         </h1>
         <p className="mt-2 text-gray-500 dark:text-gray-400">
-          ادارة حسابات المستخدمين والادوار والاذونات
+          {t("users.management.description")}
         </p>
       </div>
 
-      {/* Filters and Search */}
       <button className="hidden items-center gap-2 rounded-lg bg-purple-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs hover:bg-purple-600 lg:inline-flex">
-            <PlusIcon className="w-4 h-4" />
-            إضافة مستخدم جديد (قريبا)
-          </button>
-      {/* <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/3 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative">
-              <select
-                value={selectedRole}
-                onChange={(e) => {
-                  setSelectedRole(e.target.value);
-                }}
-                className="h-11 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
-              >
-                <option value="الكل">الدور: الكل</option>
-                <option value="مسؤول">مسؤول</option>
-                <option value="بائع">بائع</option>
-                <option value="عميل">عميل</option>
-              </select>
-            </div>
-
-            <div className="relative">
-              <select
-                value={selectedStatus}
-                onChange={(e) => {
-                  setSelectedStatus(e.target.value);
-                }}
-                className="h-11 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
-              >
-                <option value="الكل">الحالة: الكل</option>
-                <option value="نشط">نشط</option>
-                <option value="قيد الانتظار">قيد الانتظار</option>
-                <option value="معلق">معلق</option>
-              </select>
-            </div>
-
-            <div className="relative flex-1 sm:max-w-md">
-              <span className="absolute -translate-y-1/2 right-4 top-1/2 pointer-events-none">
-                <svg
-                  className="fill-gray-500 dark:fill-gray-400"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    fillRule="evenodd"
-                    clipRule="evenodd"
-                    d="M3.04175 9.37363C3.04175 5.87693 5.87711 3.04199 9.37508 3.04199C12.8731 3.04199 15.7084 5.87693 15.7084 9.37363C15.7084 12.8703 12.8731 15.7053 9.37508 15.7053C5.87711 15.7053 3.04175 12.8703 3.04175 9.37363ZM9.37508 1.54199C5.04902 1.54199 1.54175 5.04817 1.54175 9.37363C1.54175 13.6991 5.04902 17.2053 9.37508 17.2053C11.2674 17.2053 13.003 16.5344 14.357 15.4176L17.177 18.238C17.4699 18.5309 17.9448 18.5309 18.2377 18.238C18.5306 17.9451 18.5306 17.4703 18.2377 17.1774L15.418 14.3573C16.5365 13.0033 17.2084 11.2669 17.2084 9.37363C17.2084 5.04817 13.7011 1.54199 9.37508 1.54199Z"
-                    fill=""
-                  />
-                </svg>
-              </span>
-              <input
-                type="text"
-                placeholder="ابحث بالاسم او البريد الالكتروني او المعرف..."
-                className="h-11 w-full rounded-lg border border-gray-200 bg-white py-2.5 pr-12 pl-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-              />
-            </div>
-          </div>
-        </div>
-      </div> */}
-
-      {/* Table */}
+        <PlusIcon className="w-4 h-4" />
+        {t("users.management.addNewUser")}
+      </button>
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/3 sm:px-6">
         {error && (
           <div className="mb-4 p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800">
@@ -483,7 +410,7 @@ export default function UserManagement() {
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-gray-500 dark:text-gray-400">
-              جاري التحميل...
+              {t("users.management.loading")}
             </div>
           </div>
         ) : (
@@ -506,32 +433,32 @@ export default function UserManagement() {
                           onChange={toggleSelectAll}
                           className="w-4 h-4 text-brand-500 border-gray-300 rounded focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800"
                         />
-                        المستخدم
+                        {t("users.management.tableHeaders.user")}
                       </div>
                     </TableCell>
                     <TableCell
                       isHeader
                       className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                     >
-                      الدور
+                      {t("users.management.tableHeaders.role")}
                     </TableCell>
                     <TableCell
                       isHeader
                       className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                     >
-                      اخر تسجيل دخول
+                      {t("users.management.tableHeaders.lastLogin")}
                     </TableCell>
                     <TableCell
                       isHeader
                       className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                     >
-                      الحالة
+                      {t("users.management.tableHeaders.status")}
                     </TableCell>
                     <TableCell
                       isHeader
                       className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                     >
-                      الاجراءات
+                      {t("users.management.tableHeaders.actions")}
                     </TableCell>
                   </TableRow>
                 </TableHeader>
@@ -540,7 +467,7 @@ export default function UserManagement() {
                   {users.length === 0 ? (
                     <TableRow>
                       <TableCell className="py-12 text-center text-gray-500 dark:text-gray-400">
-                        لا يوجد مستخدمين
+                        {t("users.management.noUsers")}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -580,7 +507,7 @@ export default function UserManagement() {
                             {roleName || user.default_role.role_name_key}
                           </TableCell>
                           <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                            {formatDate(user.last_login_timestamp)}
+                            {formatDate(user.last_login_timestamp, t)}
                           </TableCell>
                           <TableCell className="py-3">
                             <Badge
@@ -617,7 +544,7 @@ export default function UserManagement() {
                                     }}
                                     className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
                                   >
-                                    عرض التفاصيل
+                                    {t("users.management.actions.viewDetails")}
                                   </DropdownItem>
                                   <DropdownItem
                                     onItemClick={() => {
@@ -626,7 +553,7 @@ export default function UserManagement() {
                                     }}
                                     className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
                                   >
-                                    تعديل الحالة
+                                    {t("users.management.actions.changeStatus")}
                                   </DropdownItem>
                                   <DropdownItem
                                     onItemClick={() => {
@@ -638,7 +565,7 @@ export default function UserManagement() {
                                     }}
                                     className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-red-300"
                                   >
-                                    حذف
+                                    {t("users.management.actions.delete")}
                                   </DropdownItem>
                                 </Dropdown>
                               </div>
@@ -655,7 +582,6 @@ export default function UserManagement() {
         )}
       </div>
 
-      {/* Status Change Modal */}
       <Modal
         isOpen={isStatusModalOpen}
         onClose={handleCloseStatusModal}
@@ -663,20 +589,20 @@ export default function UserManagement() {
       >
         <div className="space-y-6">
           <h4 className="font-semibold text-gray-800 text-title-sm dark:text-white/90">
-            تعديل حالة المستخدم
+            {t("users.management.statusModal.title")}
           </h4>
 
           {selectedUserForStatusChange && (
             <div className="space-y-4">
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  المستخدم:{" "}
+                  {t("users.management.statusModal.user")}{" "}
                   <span className="font-medium text-gray-800 dark:text-white/90">
                     {`${selectedUserForStatusChange.first_name} ${selectedUserForStatusChange.last_name}`}
                   </span>
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  الحالة الحالية:{" "}
+                  {t("users.management.statusModal.currentStatus")}{" "}
                   <span className="font-medium text-gray-800 dark:text-white/90">
                     {getVerificationStatusArabicTranslation(
                       selectedUserForStatusChange.user_verification_status
@@ -690,7 +616,7 @@ export default function UserManagement() {
 
               <div>
                 <Label>
-                  الحالة الجديدة <span className="text-error-500">*</span>
+                  {t("users.management.statusModal.newStatus")} <span className="text-error-500">*</span>
                 </Label>
                 <select
                   value={selectedStatusId || ""}
@@ -699,7 +625,7 @@ export default function UserManagement() {
                   }
                   className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
                 >
-                  <option value="">اختر الحالة</option>
+                  <option value="">{t("users.management.statusModal.selectStatus")}</option>
                   {verificationStatuses.map((status) => {
                     const arabicName = getVerificationStatusArabicTranslation(
                       status.translations
@@ -717,9 +643,9 @@ export default function UserManagement() {
               </div>
 
               <div>
-                <Label>سبب التغيير (اختياري)</Label>
+                <Label>{t("users.management.statusModal.reasonLabel")}</Label>
                 <textarea
-                  placeholder="أدخل سبب تغيير الحالة..."
+                  placeholder={t("users.management.statusModal.reasonPlaceholder")}
                   value={reasonForChange}
                   onChange={(e) => setReasonForChange(e.target.value)}
                   rows={4}
@@ -740,14 +666,14 @@ export default function UserManagement() {
                   onClick={handleCloseStatusModal}
                   disabled={isChangingStatus}
                 >
-                  إلغاء
+                  {t("users.management.statusModal.cancel")}
                 </Button>
                 <Button
                   size="sm"
                   onClick={handleChangeUserStatus}
                   disabled={isChangingStatus || !selectedStatusId}
                 >
-                  {isChangingStatus ? "جاري التحديث..." : "تحديث الحالة"}
+                  {isChangingStatus ? t("users.management.statusModal.updating") : t("users.management.statusModal.update")}
                 </Button>
               </div>
             </div>

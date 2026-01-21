@@ -126,7 +126,7 @@ export default function ProductDetailView() {
       try {
         const authHeader = getAuthHeader();
         const response = await fetch(
-          `https://api-testing.mothmerah.sa/api/v1/${productId}`,
+          `http://127.0.0.1:8000/api/v1/products/${productId}`,
           {
             method: "GET",
             headers: {

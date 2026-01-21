@@ -190,7 +190,7 @@ export async function fetchAndStoreUserInfo(): Promise<string | null> {
   if (!token) return null;
 
   try {
-    const response = await fetch("https://api-testing.mothmerah.sa/api/v1/users/me", {
+    const response = await fetch("http://127.0.0.1:8000/api/v1/users/me", {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -259,13 +259,13 @@ export function isAuthenticated(): boolean {
  */
 export function clearAuthTokens(): void {
   if (typeof window === "undefined") return;
-  
+
   // Clear cookies
   deleteCookie("access_token");
   deleteCookie("refresh_token");
   deleteCookie("token_type");
   deleteCookie("expires_at");
-  
+
   // Clear user data from localStorage
   localStorage.removeItem("user");
   localStorage.removeItem("user_type");
@@ -286,8 +286,8 @@ export function logout(redirectTo: string = "/signin"): void {
  */
 export function getAuthHeader(): { Authorization: string } {
   const token = getAccessToken();
-  const tokenType = getTokenType();  
-  
+  const tokenType = getTokenType();
+
   if (!token) return { Authorization: "" };
 
   return {

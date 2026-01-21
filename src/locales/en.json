@@ -1,0 +1,150 @@
+{
+  "auth": {
+    "signIn": {
+      "title": "Sign In",
+      "subtitle": "Enter your phone number and password to sign in!",
+      "signInWithGoogle": "Sign in with Google",
+      "signInWithX": "Sign in with X",
+      "or": "Or",
+      "phoneNumber": "Phone Number",
+      "password": "Password",
+      "keepMeLoggedIn": "Keep me logged in",
+      "forgotPassword": "Forgot password?",
+      "signInButton": "Sign in",
+      "signingIn": "Signing in...",
+      "enterPhoneNumber": "Enter your phone number",
+      "enterPassword": "Enter your password",
+      "backToDashboard": "Back to dashboard",
+      "errors": {
+        "loginFailed": "Login failed. Please check your credentials.",
+        "errorOccurred": "An error occurred. Please try again."
+      }
+    }
+  },
+  "users": {
+    "management": {
+      "title": "User Management",
+      "description": "Manage user accounts, roles, and permissions",
+      "addNewUser": "Add New User (Coming Soon)",
+      "tableHeaders": {
+        "user": "User",
+        "role": "Role",
+        "lastLogin": "Last Login",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "noUsers": "No users found",
+      "neverLoggedIn": "Never logged in",
+      "loading": "Loading...",
+      "actions": {
+        "viewDetails": "View Details",
+        "changeStatus": "Change Status",
+        "delete": "Delete"
+      },
+      "delete": {
+        "confirm": "Are you sure you want to delete the user",
+        "failed": "Failed to delete user",
+        "error": "An error occurred while deleting the user"
+      },
+      "statusModal": {
+        "title": "Change User Status",
+        "user": "User:",
+        "currentStatus": "Current Status:",
+        "newStatus": "New Status",
+        "reasonLabel": "Reason for Change (Optional)",
+        "reasonPlaceholder": "Enter reason for status change...",
+        "selectStatus": "Select Status",
+        "cancel": "Cancel",
+        "updating": "Updating...",
+        "update": "Update Status"
+      },
+      "errors": {
+        "fetchFailed": "An error occurred while fetching data",
+        "selectNewStatus": "Please select a new status",
+        "changeStatusFailed": "Failed to change user status",
+        "changeStatusError": "An error occurred while changing user status",
+        "fetchStatusesError": "An error occurred while fetching verification statuses"
+      }
+    },
+    "profile": {
+      "loading": "Loading user information...",
+      "noData": "No information available",
+      "errors": {
+        "userIdMissing": "User ID is not available",
+        "fetchFailed": "Failed to fetch user details",
+        "fetchError": "An error occurred while fetching user details"
+      },
+      "metaCard": {
+        "edit": "Edit",
+        "editModal": {
+          "title": "Edit Personal Information",
+          "description": "Update your details to keep your profile up-to-date.",
+          "socialLinks": "Social Links",
+          "personalInfo": "Personal Information",
+          "facebook": "Facebook",
+          "x": "X.com",
+          "linkedin": "Linkedin",
+          "instagram": "Instagram",
+          "firstName": "First Name",
+          "lastName": "Last Name",
+          "email": "Email Address",
+          "phone": "Phone",
+          "bio": "Bio",
+          "close": "Close",
+          "saveChanges": "Save Changes"
+        }
+      },
+      "infoCard": {
+        "title": "Personal Information",
+        "firstName": "First Name",
+        "lastName": "Last Name",
+        "email": "Email",
+        "phoneNumber": "Phone Number",
+        "userId": "User ID",
+        "lastLogin": "Last Login",
+        "neverLoggedIn": "Never logged in",
+        "notAvailable": "Not available",
+        "edit": "Edit",
+        "editModal": {
+          "title": "Edit Personal Information",
+          "description": "Update your details to keep your profile up-to-date.",
+          "socialLinks": "Social Links",
+          "personalInfo": "Personal Information",
+          "facebook": "Facebook",
+          "x": "X.com",
+          "linkedin": "Linkedin",
+          "instagram": "Instagram",
+          "firstName": "First Name",
+          "lastName": "Last Name",
+          "email": "Email Address",
+          "phone": "Phone",
+          "bio": "Bio",
+          "close": "Close",
+          "saveChanges": "Save Changes"
+        }
+      },
+      "addressCard": {
+        "title": "Account and Verification Information",
+        "defaultRole": "Default Role",
+        "userType": "User Type",
+        "verificationStatus": "Verification Status",
+        "createdAt": "Creation Date",
+        "phoneVerifiedAt": "Phone Verification Date",
+        "emailVerifiedAt": "Email Verification Date",
+        "notVerified": "Not verified",
+        "notAvailable": "Not available",
+        "edit": "Edit",
+        "editModal": {
+          "title": "Edit Address",
+          "description": "Update your details to keep your profile up-to-date.",
+          "country": "Country",
+          "cityState": "City/State",
+          "postalCode": "Postal Code",
+          "taxId": "TAX ID",
+          "close": "Close",
+          "saveChanges": "Save Changes"
+        }
+      }
+    }
+  }
+}

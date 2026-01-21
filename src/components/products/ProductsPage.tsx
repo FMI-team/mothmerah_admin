@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { DownloadIcon, MoreDotIcon } from "@/icons";
+import { DownloadIcon, MoreDotIcon, PlusIcon } from "@/icons";
 import Badge from "../ui/badge/Badge";
 import {
   Table,
@@ -14,6 +14,8 @@ import {
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { getAuthHeader } from "@/lib/auth";
+import Button from "../ui/button/Button";
+import CreateProductForm from "./CreateProductForm";
 
 // ------------- API Types -------------
 
@@ -100,10 +102,10 @@ interface Product {
   saleType: "ثابت" | "مزاد" | "RFQ";
   availableQuantity: string;
   status:
-    | "مسودة" // DRAFT
-    | "نشط" // ACTIVE
-    | "غير نشط" // INACTIVE
-    | "موقوفة"; // DISCONTINUED
+  | "مسودة" // DRAFT
+  | "نشط" // ACTIVE
+  | "غير نشط" // INACTIVE
+  | "موقوفة"; // DISCONTINUED
   addedDate: string;
   imageUrl: string;
 }
@@ -164,8 +166,7 @@ const mapApiProductToProduct = (api: ApiProduct): Product => {
     api.packaging_options?.[0];
 
   const availableQuantity = defaultPackaging
-    ? `${defaultPackaging.quantity_in_packaging} ${
-        defaultPackaging.unit_of_measure?.unit_abbreviation_key ?? ""
+    ? `${defaultPackaging.quantity_in_packaging} ${defaultPackaging.unit_of_measure?.unit_abbreviation_key ?? ""
       }`.trim()
     : `1 ${api.unit_of_measure?.unit_abbreviation_key ?? ""}`.trim();
 
@@ -216,6 +217,7 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isCreateProductModalOpen, setIsCreateProductModalOpen] = useState(false);
 
   const itemsPerPage = 6;
 
@@ -225,7 +227,7 @@ export default function ProductsPage() {
 
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/", {
+      const response = await fetch("http://127.0.0.1:8000/api/v1/products/", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -342,6 +344,14 @@ export default function ProductsPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <Button
+            size="sm"
+            className="bg-purple-500 hover:bg-purple-600"
+            onClick={() => setIsCreateProductModalOpen(true)}
+          >
+            <PlusIcon className="w-4 h-4 ml-2" />
+            إنشاء منتج جديد
+          </Button>
           <button
             onClick={handleExportCSV}
             className="inline-flex items-center gap-2 rounded-lg bg-purple-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs hover:bg-purple-600"
@@ -445,11 +455,10 @@ export default function ProductsPage() {
                 setSelectedStatus(status);
                 setCurrentPage(1);
               }}
-              className={`whitespace-nowrap rounded-lg px-4 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
-                selectedStatus === status
-                  ? "bg-purple-500 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-              }`}
+              className={`whitespace-nowrap rounded-lg px-4 py-2.5 text-xs sm:text-sm font-medium transition-colors ${selectedStatus === status
+                ? "bg-purple-500 text-white"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                }`}
             >
               {status}
             </button>
@@ -493,170 +502,170 @@ export default function ProductsPage() {
           </div>
         ) : (
           <div className="max-w-full overflow-x-auto">
-          <Table>
-            <TableHeader className="border-y border-gray-100 dark:border-gray-800">
-              <TableRow>
-                <TableCell
-                  isHeader
-                  className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                >
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={
-                        paginatedProducts.length > 0 &&
-                        selectedProducts.length === paginatedProducts.length
-                      }
-                      onChange={toggleSelectAll}
-                      className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800"
-                    />
-                    صورة المنتج
-                  </div>
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                >
-                  اسم المنتج
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                >
-                  الفئة
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                >
-                  المالك
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                >
-                  الكمية المتاحة
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                >
-                  نوع البيع
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                >
-                  الحالة
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                >
-                  تاريخ الاضافة
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                >
-                  الاجراءات
-                </TableCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {paginatedProducts.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell className="py-3">
+            <Table>
+              <TableHeader className="border-y border-gray-100 dark:border-gray-800">
+                <TableRow>
+                  <TableCell
+                    isHeader
+                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                  >
                     <div className="flex items-center gap-3">
                       <input
                         type="checkbox"
-                        checked={selectedProducts.includes(product.id)}
-                        onChange={() => toggleProductSelection(product.id)}
+                        checked={
+                          paginatedProducts.length > 0 &&
+                          selectedProducts.length === paginatedProducts.length
+                        }
+                        onChange={toggleSelectAll}
                         className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800"
                       />
-                      <div className="h-10 w-10 overflow-hidden rounded-lg bg-gray-100">
-                        {/* Placeholder product image */}
-                        <div className="h-full w-full bg-linear-to-tr from-yellow-400 to-orange-500" />
-                      </div>
+                      صورة المنتج
                     </div>
                   </TableCell>
-                  <TableCell className="py-3 text-theme-sm text-gray-800 dark:text-white/90">
-                    {product.name}
+                  <TableCell
+                    isHeader
+                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                  >
+                    اسم المنتج
                   </TableCell>
-                  <TableCell className="py-3 text-theme-sm text-gray-800 dark:text-white/90">
-                    {product.category}
+                  <TableCell
+                    isHeader
+                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                  >
+                    الفئة
                   </TableCell>
-                  <TableCell className="py-3 text-theme-sm text-gray-800 dark:text-white/90">
-                    {product.ownerName}
+                  <TableCell
+                    isHeader
+                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                  >
+                    المالك
                   </TableCell>
-                  <TableCell className="py-3 text-theme-sm text-gray-800 dark:text-white/90">
-                    {product.availableQuantity}
+                  <TableCell
+                    isHeader
+                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                  >
+                    الكمية المتاحة
                   </TableCell>
-                  <TableCell className="py-3 text-theme-sm text-gray-800 dark:text-white/90">
-                    {product.saleType}
+                  <TableCell
+                    isHeader
+                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                  >
+                    نوع البيع
                   </TableCell>
-                  <TableCell className="py-3">
-                    <Badge size="sm" color={getStatusBadgeColor(product.status)}>
-                      {product.status}
-                    </Badge>
+                  <TableCell
+                    isHeader
+                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                  >
+                    الحالة
                   </TableCell>
-                  <TableCell className="py-3 text-theme-sm text-gray-500 dark:text-gray-400">
-                    {product.addedDate}
+                  <TableCell
+                    isHeader
+                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                  >
+                    تاريخ الاضافة
                   </TableCell>
-                  <TableCell className="py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="relative">
-                        <button
-                          onClick={() =>
-                            setActionDropdownOpen(
-                              actionDropdownOpen === product.id
-                                ? null
-                                : product.id
-                            )
-                          }
-                          className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-                        >
-                          <MoreDotIcon className="h-5 w-5" />
-                        </button>
-                        <Dropdown
-                          isOpen={actionDropdownOpen === product.id}
-                          onClose={() => setActionDropdownOpen(null)}
-                          className="absolute left-0 z-50 mt-2 w-40 p-2"
-                        >
-                          <DropdownItem
-                            onItemClick={() => {
-                              setActionDropdownOpen(null);
-                              router.push(`${pathname}/${product.id}`);
-                            }}
-                            className="flex w-full rounded-lg font-normal text-right text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-                          >
-                            عرض التفاصيل
-                          </DropdownItem>
-                          <DropdownItem
-                            onItemClick={() => {
-                              setActionDropdownOpen(null);
-                            }}
-                            className="flex w-full rounded-lg font-normal text-right text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-                          >
-                            تعديل
-                          </DropdownItem>
-                          <DropdownItem
-                            onItemClick={() => {
-                              setActionDropdownOpen(null);
-                            }}
-                            className="flex w-full rounded-lg font-normal text-right text-gray-500 hover:bg-gray-100 hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-red-300"
-                          >
-                            ايقاف / حذف
-                          </DropdownItem>
-                        </Dropdown>
-                      </div>
-                    </div>
+                  <TableCell
+                    isHeader
+                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                  >
+                    الاجراءات
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {paginatedProducts.map((product) => (
+                  <TableRow key={product.id}>
+                    <TableCell className="py-3">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedProducts.includes(product.id)}
+                          onChange={() => toggleProductSelection(product.id)}
+                          className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800"
+                        />
+                        <div className="h-10 w-10 overflow-hidden rounded-lg bg-gray-100">
+                          {/* Placeholder product image */}
+                          <div className="h-full w-full bg-linear-to-tr from-yellow-400 to-orange-500" />
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-3 text-theme-sm text-gray-800 dark:text-white/90">
+                      {product.name}
+                    </TableCell>
+                    <TableCell className="py-3 text-theme-sm text-gray-800 dark:text-white/90">
+                      {product.category}
+                    </TableCell>
+                    <TableCell className="py-3 text-theme-sm text-gray-800 dark:text-white/90">
+                      {product.ownerName}
+                    </TableCell>
+                    <TableCell className="py-3 text-theme-sm text-gray-800 dark:text-white/90">
+                      {product.availableQuantity}
+                    </TableCell>
+                    <TableCell className="py-3 text-theme-sm text-gray-800 dark:text-white/90">
+                      {product.saleType}
+                    </TableCell>
+                    <TableCell className="py-3">
+                      <Badge size="sm" color={getStatusBadgeColor(product.status)}>
+                        {product.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="py-3 text-theme-sm text-gray-500 dark:text-gray-400">
+                      {product.addedDate}
+                    </TableCell>
+                    <TableCell className="py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="relative">
+                          <button
+                            onClick={() =>
+                              setActionDropdownOpen(
+                                actionDropdownOpen === product.id
+                                  ? null
+                                  : product.id
+                              )
+                            }
+                            className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                          >
+                            <MoreDotIcon className="h-5 w-5" />
+                          </button>
+                          <Dropdown
+                            isOpen={actionDropdownOpen === product.id}
+                            onClose={() => setActionDropdownOpen(null)}
+                            className="absolute left-0 z-50 mt-2 w-40 p-2"
+                          >
+                            <DropdownItem
+                              onItemClick={() => {
+                                setActionDropdownOpen(null);
+                                router.push(`${pathname}/${product.id}`);
+                              }}
+                              className="flex w-full rounded-lg font-normal text-right text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                            >
+                              عرض التفاصيل
+                            </DropdownItem>
+                            <DropdownItem
+                              onItemClick={() => {
+                                setActionDropdownOpen(null);
+                              }}
+                              className="flex w-full rounded-lg font-normal text-right text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                            >
+                              تعديل
+                            </DropdownItem>
+                            <DropdownItem
+                              onItemClick={() => {
+                                setActionDropdownOpen(null);
+                              }}
+                              className="flex w-full rounded-lg font-normal text-right text-gray-500 hover:bg-gray-100 hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-red-300"
+                            >
+                              ايقاف / حذف
+                            </DropdownItem>
+                          </Dropdown>
+                        </div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
 
         {/* Pagination */}
@@ -678,11 +687,10 @@ export default function ProductsPage() {
                 <button
                   key={page}
                   onClick={() => setCurrentPage(page)}
-                  className={`flex h-10 w-10 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                    currentPage === page
-                      ? "bg-purple-500 text-white"
-                      : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                  }`}
+                  className={`flex h-10 w-10 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors ${currentPage === page
+                    ? "bg-purple-500 text-white"
+                    : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                    }`}
                 >
                   {page}
                 </button>
@@ -700,6 +708,14 @@ export default function ProductsPage() {
           </div>
         )}
       </div>
+
+      <CreateProductForm
+        isOpen={isCreateProductModalOpen}
+        onClose={() => setIsCreateProductModalOpen(false)}
+        onSuccess={() => {
+          fetchProducts();
+        }}
+      />
     </div>
   );
 }

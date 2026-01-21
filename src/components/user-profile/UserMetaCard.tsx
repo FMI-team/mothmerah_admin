@@ -9,6 +9,7 @@ import Image from "next/image";
 import { UserDetails } from "./UserProfileView";
 import Badge from "../ui/badge/Badge";
 import { UserCircleIcon } from "@/icons";
+import { useTranslations } from "@/lib/translations";
 
 interface Translation {
   language_code: string;
@@ -44,10 +45,9 @@ interface UserMetaCardProps {
 }
 
 export default function UserMetaCard({ userDetails }: UserMetaCardProps) {
+  const { t } = useTranslations('ar');
   const { isOpen, openModal, closeModal } = useModal();
   const handleSave = () => {
-    // Handle save logic here
-    console.log("Saving changes...");
     closeModal();
   };
   return (
@@ -73,7 +73,7 @@ export default function UserMetaCard({ userDetails }: UserMetaCardProps) {
             </div>
             <div className="order-3 xl:order-2">
               <h4 className="mb-2 text-lg font-semibold text-center text-gray-800 dark:text-white/90 xl:text-left">
-                {userDetails 
+                {userDetails
                   ? `${userDetails.first_name} ${userDetails.last_name}`
                   : "Musharof Chowdhury"}
               </h4>
@@ -81,9 +81,9 @@ export default function UserMetaCard({ userDetails }: UserMetaCardProps) {
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {userDetails
                     ? getArabicTranslation(
-                        userDetails.default_role.translations,
-                        "translated_role_name"
-                      ) || userDetails.default_role.role_name_key
+                      userDetails.default_role.translations,
+                      "translated_role_name"
+                    ) || userDetails.default_role.role_name_key
                     : "Team Manager"}
                 </p>
                 {userDetails && (
@@ -123,9 +123,9 @@ export default function UserMetaCard({ userDetails }: UserMetaCardProps) {
               </div>
             </div>
             <div className="flex items-center order-2 gap-2 grow xl:order-3 xl:justify-end">
-              <a        
-        target="_blank"
-        rel="noreferrer" href='https://www.facebook.com/PimjoHQ' className="flex h-11 w-11 items-center justify-center gap-2 rounded-full border border-gray-300 bg-white text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/3 dark:hover:text-gray-200">
+              <a
+                target="_blank"
+                rel="noreferrer" href='https://www.facebook.com/PimjoHQ' className="flex h-11 w-11 items-center justify-center gap-2 rounded-full border border-gray-300 bg-white text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/3 dark:hover:text-gray-200">
                 <svg
                   className="fill-current"
                   width="20"
@@ -142,7 +142,7 @@ export default function UserMetaCard({ userDetails }: UserMetaCardProps) {
               </a>
 
               <a href='https://x.com/PimjoHQ' target="_blank"
-        rel="noreferrer"  className="flex h-11 w-11 items-center justify-center gap-2 rounded-full border border-gray-300 bg-white text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/3 dark:hover:text-gray-200">
+                rel="noreferrer" className="flex h-11 w-11 items-center justify-center gap-2 rounded-full border border-gray-300 bg-white text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/3 dark:hover:text-gray-200">
                 <svg
                   className="fill-current"
                   width="20"
@@ -159,7 +159,7 @@ export default function UserMetaCard({ userDetails }: UserMetaCardProps) {
               </a>
 
               <a href="https://www.linkedin.com/company/pimjo" target="_blank"
-        rel="noreferrer" className="flex h-11 w-11 items-center justify-center gap-2 rounded-full border border-gray-300 bg-white text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/3 dark:hover:text-gray-200">
+                rel="noreferrer" className="flex h-11 w-11 items-center justify-center gap-2 rounded-full border border-gray-300 bg-white text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/3 dark:hover:text-gray-200">
                 <svg
                   className="fill-current"
                   width="20"
@@ -176,7 +176,7 @@ export default function UserMetaCard({ userDetails }: UserMetaCardProps) {
               </a>
 
               <a href='https://instagram.com/PimjoHQ' target="_blank"
-        rel="noreferrer" className="flex h-11 w-11 items-center justify-center gap-2 rounded-full border border-gray-300 bg-white text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/3 dark:hover:text-gray-200">
+                rel="noreferrer" className="flex h-11 w-11 items-center justify-center gap-2 rounded-full border border-gray-300 bg-white text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/3 dark:hover:text-gray-200">
                 <svg
                   className="fill-current"
                   width="20"
@@ -212,7 +212,7 @@ export default function UserMetaCard({ userDetails }: UserMetaCardProps) {
                 fill=""
               />
             </svg>
-            Edit
+            {t("users.profile.metaCard.edit")}
           </button>
         </div>
       </div>
@@ -220,22 +220,22 @@ export default function UserMetaCard({ userDetails }: UserMetaCardProps) {
         <div className="no-scrollbar relative w-full max-w-[700px] overflow-y-auto rounded-3xl bg-white p-4 dark:bg-gray-900 lg:p-11">
           <div className="px-2 pr-14">
             <h4 className="mb-2 text-2xl font-semibold text-gray-800 dark:text-white/90">
-              Edit Personal Information
+              {t("users.profile.metaCard.editModal.title")}
             </h4>
             <p className="mb-6 text-sm text-gray-500 dark:text-gray-400 lg:mb-7">
-              Update your details to keep your profile up-to-date.
+              {t("users.profile.metaCard.editModal.description")}
             </p>
           </div>
           <form className="flex flex-col">
             <div className="custom-scrollbar h-[450px] overflow-y-auto px-2 pb-3">
               <div>
                 <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">
-                  Social Links
+                  {t("users.profile.metaCard.editModal.socialLinks")}
                 </h5>
 
                 <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
                   <div>
-                    <Label>Facebook</Label>
+                    <Label>{t("users.profile.metaCard.editModal.facebook")}</Label>
                     <Input
                       type="text"
                       defaultValue="https://www.facebook.com/PimjoHQ"
@@ -243,12 +243,12 @@ export default function UserMetaCard({ userDetails }: UserMetaCardProps) {
                   </div>
 
                   <div>
-                    <Label>X.com</Label>
+                    <Label>{t("users.profile.metaCard.editModal.x")}</Label>
                     <Input type="text" defaultValue="https://x.com/PimjoHQ" />
                   </div>
 
                   <div>
-                    <Label>Linkedin</Label>
+                    <Label>{t("users.profile.metaCard.editModal.linkedin")}</Label>
                     <Input
                       type="text"
                       defaultValue="https://www.linkedin.com/company/pimjo"
@@ -256,7 +256,7 @@ export default function UserMetaCard({ userDetails }: UserMetaCardProps) {
                   </div>
 
                   <div>
-                    <Label>Instagram</Label>
+                    <Label>{t("users.profile.metaCard.editModal.instagram")}</Label>
                     <Input
                       type="text"
                       defaultValue="https://instagram.com/PimjoHQ"
@@ -266,32 +266,32 @@ export default function UserMetaCard({ userDetails }: UserMetaCardProps) {
               </div>
               <div className="mt-7">
                 <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">
-                  Personal Information
+                  {t("users.profile.metaCard.editModal.personalInfo")}
                 </h5>
 
                 <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
                   <div className="col-span-2 lg:col-span-1">
-                    <Label>First Name</Label>
+                    <Label>{t("users.profile.metaCard.editModal.firstName")}</Label>
                     <Input type="text" defaultValue="Musharof" />
                   </div>
 
                   <div className="col-span-2 lg:col-span-1">
-                    <Label>Last Name</Label>
+                    <Label>{t("users.profile.metaCard.editModal.lastName")}</Label>
                     <Input type="text" defaultValue="Chowdhury" />
                   </div>
 
                   <div className="col-span-2 lg:col-span-1">
-                    <Label>Email Address</Label>
+                    <Label>{t("users.profile.metaCard.editModal.email")}</Label>
                     <Input type="text" defaultValue="randomuser@pimjo.com" />
                   </div>
 
                   <div className="col-span-2 lg:col-span-1">
-                    <Label>Phone</Label>
+                    <Label>{t("users.profile.metaCard.editModal.phone")}</Label>
                     <Input type="text" defaultValue="+09 363 398 46" />
                   </div>
 
                   <div className="col-span-2">
-                    <Label>Bio</Label>
+                    <Label>{t("users.profile.metaCard.editModal.bio")}</Label>
                     <Input type="text" defaultValue="Team Manager" />
                   </div>
                 </div>
@@ -299,10 +299,10 @@ export default function UserMetaCard({ userDetails }: UserMetaCardProps) {
             </div>
             <div className="flex items-center gap-3 px-2 mt-6 lg:justify-end">
               <Button size="sm" variant="outline" onClick={closeModal}>
-                Close
+                {t("users.profile.metaCard.editModal.close")}
               </Button>
               <Button size="sm" onClick={handleSave}>
-                Save Changes
+                {t("users.profile.metaCard.editModal.saveChanges")}
               </Button>
             </div>
           </form>
