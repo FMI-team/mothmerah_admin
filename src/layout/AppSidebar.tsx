@@ -28,7 +28,6 @@ type NavItem = {
   subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
 };
 
-// Admin navigation items (full access)
 const adminNavItems: NavItem[] = [
   {
     icon: <GridIcon />,
@@ -37,7 +36,7 @@ const adminNavItems: NavItem[] = [
   },
   {
     icon: <GroupIcon />,
-    name: "ادارة المستخدمين", // Admin only
+    name: "ادارة المستخدمين",
     path: "/users",
   },
   {
@@ -67,22 +66,21 @@ const adminNavItems: NavItem[] = [
   },
   {
     icon: <PieChartIcon />,
-    name: "التقارير المالية", // Admin only
+    name: "التقارير المالية",
     path: "/reports",
   },
   {
     icon: <PlugInIcon />,
-    name: "اعدادات المنصة", // Admin only
+    name: "اعدادات المنصة",
     path: "/settings",
   },
   {
     icon: <ChatIcon />,
-    name: "تذاكر الدعم", // Admin only
+    name: "تذاكر الدعم",
     path: "/support",
   },
 ];
 
-// Wholesaler navigation items (no user management, reports, settings, support)
 const wholesalerNavItems: NavItem[] = [
   {
     icon: <GridIcon />,
@@ -111,7 +109,6 @@ const wholesalerNavItems: NavItem[] = [
   }
 ];
 
-// Farmer navigation items (limited access - products, auctions, warehouses, invoices, claims)
 const farmerNavItems: NavItem[] = [
   {
     icon: <GridIcon />,
@@ -140,7 +137,6 @@ const farmerNavItems: NavItem[] = [
   }
 ];
 
-// Commercial Buyer navigation items
 const commercialBuyerNavItems: NavItem[] = [
   {
     icon: <GridIcon />,
@@ -164,6 +160,24 @@ const commercialBuyerNavItems: NavItem[] = [
   }
 ];
 
+const baseUserNavItems: NavItem[] = [
+  {
+    icon: <GridIcon />,
+    name: "لوحة التحكم",
+    path: "/base-user",
+  },
+  {
+    icon: <BoltIcon />,
+    name: "ادارة المزادات",
+    path: "/base-user/auctions",
+  },
+  {
+    icon: <DocsIcon />,
+    name: "ادارة الفواتير",
+    path: "/base-user/invoices",
+  }
+];
+
 const othersItems: NavItem[] = [];
 
 const AppSidebar: React.FC = () => {
@@ -171,11 +185,9 @@ const AppSidebar: React.FC = () => {
   const pathname = usePathname();
   const [userType, setUserType] = useState<string | null>(null);
 
-  // Get user type on mount - fetch from API if not already stored
   useEffect(() => {
     const loadUserType = async () => {
       let type = getUserType();
-      // If user type is not in localStorage, fetch from API
       if (!type) {
         type = await fetchAndStoreUserInfo();
       }
@@ -184,7 +196,6 @@ const AppSidebar: React.FC = () => {
     loadUserType();
   }, []);
 
-  // Determine which nav items to use based on user type
   const navItems = useMemo(() => {
     if (userType === "WHOLESALER" || userType === "wholesaler") {
       return wholesalerNavItems;
@@ -192,6 +203,8 @@ const AppSidebar: React.FC = () => {
       return farmerNavItems;
     } else if (userType === "COMMERCIAL_BUYER" || userType === "commercial_buyer" || userType === "COMMERCIALBUYER" || userType === "commercialBuyer") {
       return commercialBuyerNavItems;
+    } else if (userType === "BASE_USER" || userType === "base_user" || userType === "BASEUSER" || userType === "baseUser") {
+      return baseUserNavItems;
     } else {
       return adminNavItems;
     }
@@ -206,37 +219,31 @@ const AppSidebar: React.FC = () => {
   );
   const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // Check if a path is active - since navItems are already filtered by user type,
-  // we just need to check if the current pathname matches the path
   const isActive = useCallback((path: string) => {
-    // Exact match
     if (path === pathname) {
       return true;
     }
     
-    // Handle root paths
-    // For admin "/" - only match if pathname is exactly "/"
     if (path === "/") {
       return pathname === "/";
     }
     
-    // For wholesaler "/wholesaler" - match if pathname is exactly "/wholesaler" or starts with "/wholesaler/" but has no additional path segments
     if (path === "/wholesaler") {
       return pathname === "/wholesaler" || pathname === "/wholesaler/";
     }
     
-    // For farmer "/farmer" - match if pathname is exactly "/farmer" or starts with "/farmer/" but has no additional path segments
     if (path === "/farmer") {
       return pathname === "/farmer" || pathname === "/farmer/";
     }
     
-    // For commercial buyer "/commercial-buyer" - match if pathname is exactly "/commercial-buyer" or starts with "/commercial-buyer/" but has no additional path segments
     if (path === "/commercial-buyer") {
       return pathname === "/commercial-buyer" || pathname === "/commercial-buyer/";
     }
     
-    // For other paths, check if pathname starts with the path followed by "/" or is exactly the path
-    // This ensures /products matches /products but not /products-something
+    if (path === "/base-user") {
+      return pathname === "/base-user" || pathname === "/base-user/";
+    }
+    
     return pathname === path || pathname.startsWith(path + "/");
   }, [pathname]);
 
@@ -399,14 +406,12 @@ const AppSidebar: React.FC = () => {
       });
     });
 
-    // If no submenu item matches, close the open submenu
     if (!submenuMatched) {
       setOpenSubmenu(null);
     }
   }, [pathname, isActive, navItems]);
 
   useEffect(() => {
-    // Set the height of the submenu items when the submenu is opened
     if (openSubmenu !== null) {
       const key = `${openSubmenu.type}-${openSubmenu.index}`;
       if (subMenuRefs.current[key]) {
@@ -446,6 +451,8 @@ const AppSidebar: React.FC = () => {
               ? "/farmer"
               : userType === "COMMERCIAL_BUYER" || userType === "commercial_buyer" || userType === "COMMERCIALBUYER" || userType === "commercialBuyer"
               ? "/commercial-buyer"
+              : userType === "BASE_USER" || userType === "base_user" || userType === "BASEUSER" || userType === "baseUser"
+              ? "/base-user"
               : "/"
           }
         >
@@ -497,6 +504,8 @@ const AppSidebar: React.FC = () => {
                         ? "مزارع"
                         : userType === "COMMERCIAL_BUYER" || userType === "commercial_buyer" || userType === "COMMERCIALBUYER" || userType === "commercialBuyer"
                         ? "مشتري تجاري"
+                        : userType === "BASE_USER" || userType === "base_user" || userType === "BASEUSER" || userType === "baseUser"
+                        ? "مستخدم أساسي"
                         : "مسؤول النظام"}
                     </span>
                   </>

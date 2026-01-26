@@ -38,11 +38,13 @@ const KPICard: React.FC<KPICardProps> = ({ title, value, change, icon }) => {
 export default function DashboardOverview() {
   return (
     <div className="space-y-6">
-      {/* Welcome Section */}
       <div>
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
           لوحة التحكم
         </h1>
+        <p className="mt-2 text-gray-500 dark:text-gray-400">
+          مرحبا بعودتك إليك نظرة عامة على السوق
+        </p>
       </div>
 
       {/* KPI Cards */}

@@ -1,9 +1,8 @@
 "use client";
-import Image from "next/image";
 import React, { useEffect, useState } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
-import { logout, getAuthHeader } from "@/lib/auth";
+import { logout, getAuthHeader, getUserType } from "@/lib/auth";
 
 interface CurrentUser {
   fullName?: string;
@@ -13,6 +12,7 @@ interface CurrentUser {
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState<CurrentUser | null>(null);
+  const [userType, setUserType] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -71,7 +71,17 @@ export default function UserDropdown() {
     };
 
     fetchCurrentUser();
+    
+    const type = getUserType();
+    setUserType(type);
   }, []);
+  
+  const getProfilePath = () => {
+    if (userType === "BASE_USER" || userType === "base_user" || userType === "BASEUSER" || userType === "baseUser") {
+      return "/base-user/profile";
+    }
+    return "/profile";
+  };
 
   function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
     e.stopPropagation();
@@ -87,14 +97,6 @@ export default function UserDropdown() {
         onClick={toggleDropdown}
         className="flex items-center text-gray-700 dark:text-gray-400 dropdown-toggle"
       >
-        <span className="mr-3 overflow-hidden rounded-full h-11 w-11">
-          <Image
-            width={44}
-            height={44}
-            src="/images/user/owner.jpg"
-            alt="User"
-          />
-        </span>
 
         <span className="block mr-1 font-medium text-theme-sm">
           {user?.fullName || "مسؤول النظام"}
@@ -134,6 +136,31 @@ export default function UserDropdown() {
         </div>
 
         <ul className="flex flex-col gap-1 pt-4 pb-3 border-b border-gray-200 dark:border-gray-800">
+          <li>
+            <DropdownItem
+              onItemClick={closeDropdown}
+              tag="a"
+              href={getProfilePath()}
+              className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+            >
+              <svg
+                className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12ZM12 14C16.4183 14 20 15.7909 20 18V20H4V18C4 15.7909 7.58172 14 12 14Z"
+                  fill=""
+                />
+              </svg>
+              الملف الشخصي
+            </DropdownItem>
+          </li>
           <li>
             <DropdownItem
               onItemClick={closeDropdown}

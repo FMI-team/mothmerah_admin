@@ -46,6 +46,13 @@
         "failed": "فشل في حذف المستخدم",
         "error": "حدث خطأ أثناء حذف المستخدم"
       },
+      "verificationStatuses": {
+        "NOT_VERIFIED": "غير موثق",
+        "PENDING_REVIEW": "قيد المراجعة",
+        "VERIFIED": "موثق",
+        "REJECTED": "مرفوض",
+        "ACTIVE": "نشط"
+      },
       "statusModal": {
         "title": "تعديل حالة المستخدم",
         "user": "المستخدم:",

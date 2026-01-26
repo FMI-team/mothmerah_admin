@@ -46,6 +46,13 @@
         "failed": "Failed to delete user",
         "error": "An error occurred while deleting the user"
       },
+      "verificationStatuses": {
+        "NOT_VERIFIED": "Not Verified",
+        "PENDING_REVIEW": "Pending Review",
+        "VERIFIED": "Verified",
+        "REJECTED": "Rejected",
+        "ACTIVE": "Active"
+      },
       "statusModal": {
         "title": "Change User Status",
         "user": "User:",
