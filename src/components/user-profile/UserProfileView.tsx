@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 "use client";
 import React, { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
@@ -104,7 +105,7 @@ export default function UserProfileView() {
       try {
         const authHeader = getAuthHeader();
         const response = await fetch(
-          `http://127.0.0.1:8000/admin/users/${userId}`,
+          `https://api-testing.mothmerah.sa/admin/users/${userId}`,
           {
             method: "GET",
             headers: {
@@ -131,7 +132,7 @@ export default function UserProfileView() {
     };
 
     fetchUserDetails();
-  }, [userId, t]);
+  }, []);
 
   if (isLoading) {
     return (

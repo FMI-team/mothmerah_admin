@@ -22,7 +22,7 @@ export default function BaseUserProfileView() {
         const authHeader = getAuthHeader();
         
         const meResponse = await fetch(
-          "http://127.0.0.1:8000/api/v1/users/me",
+          "https://api-testing.mothmerah.sa/api/v1/users/me",
           {
             method: "GET",
             headers: {

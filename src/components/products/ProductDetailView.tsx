@@ -2,10 +2,8 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { getAuthHeader } from "@/lib/auth";
-import Image from "next/image";
 import Badge from "../ui/badge/Badge";
 import Label from "../form/Label";
-import { UserCircleIcon } from "@/icons";
 
 interface ProductTranslation {
   language_code: string;
@@ -126,7 +124,7 @@ export default function ProductDetailView() {
       try {
         const authHeader = getAuthHeader();
         const response = await fetch(
-          `http://127.0.0.1:8000/api/v1/products/${productId}`,
+          `https://api-testing.mothmerah.sa/api/v1/products/${productId}`,
           {
             method: "GET",
             headers: {
@@ -201,25 +199,6 @@ export default function ProductDetailView() {
       {/* Product Header Card */}
       <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-          {/* Product Image */}
-          <div className="shrink-0">
-            <div className="w-full max-w-xs overflow-hidden border border-gray-200 rounded-2xl dark:border-gray-800">
-              {productDetails.main_image_url ? (
-                <Image
-                  width={400}
-                  height={400}
-                  src={productDetails.main_image_url}
-                  alt={productName}
-                  className="w-full h-full object-cover"
-                  unoptimized
-                />
-              ) : (
-                <div className="flex items-center justify-center w-full h-64 bg-gray-100 dark:bg-gray-800">
-                  <UserCircleIcon className="w-32 h-32 text-gray-400" />
-                </div>
-              )}
-            </div>
-          </div>
 
           {/* Product Info */}
           <div className="flex-1">

@@ -110,7 +110,6 @@ export default function CreateProductForm({
   const [isLocalSaudiProduct, setIsLocalSaudiProduct] = useState(false);
   const [mainImageUrl, setMainImageUrl] = useState<string>("");
   const [sku, setSku] = useState<string>("");
-  const [tags, setTags] = useState<string>("");
   const [sellerUserId, setSellerUserId] = useState<string>("");
   const [image, setImage] = useState<File | null>(null);
 
@@ -140,7 +139,7 @@ export default function CreateProductForm({
     setIsLoadingCategories(true);
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("http://127.0.0.1:8000/api/v1/products/categories", {
+      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/products/categories", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -168,7 +167,7 @@ export default function CreateProductForm({
     setIsLoadingWholesalers(true);
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("http://127.0.0.1:8000/admin/users", {
+      const response = await fetch("https://api-testing.mothmerah.sa/admin/users/", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -243,76 +242,80 @@ export default function CreateProductForm({
     setIsSubmitting(true);
 
     try {
-      const validatedTranslations = JSON.stringify(
-        translationsData.filter(
-          (t) => t.translated_product_name || t.translated_description || t.translated_short_description
-        )
+      const validatedTranslations = translationsData.filter(
+        (t) => t.translated_product_name || t.translated_description || t.translated_short_description
       );
 
-      const validatedPackagingOptions = JSON.stringify(
-        packagingOptionsData.map((pkg) => ({
-          quantity_in_packaging: parseFloat(pkg.quantity_in_packaging) || 0,
-          unit_of_measure_id_for_quantity: parseInt(pkg.unit_of_measure_id_for_quantity) || 0,
-          base_price: parseFloat(pkg.base_price) || 0,
-          sku: pkg.sku || null,
-          barcode: pkg.barcode || null,
-          is_default_option: pkg.is_default_option,
-          is_active: pkg.is_active,
-          sort_order: parseInt(pkg.sort_order) || 0,
-          translations: pkg.translations.filter(
-            (t) => t.translated_packaging_option_name || t.translated_custom_description
-          ),
-        }))
-      );
+      const validatedPackagingOptions = packagingOptionsData.map((pkg) => ({
+        quantity_in_packaging: parseFloat(pkg.quantity_in_packaging) || 0,
+        unit_of_measure_id_for_quantity: parseInt(pkg.unit_of_measure_id_for_quantity) || 0,
+        base_price: parseFloat(pkg.base_price) || 0,
+        sku: pkg.sku || null,
+        barcode: pkg.barcode || null,
+        is_default_option: pkg.is_default_option,
+        is_active: pkg.is_active,
+        sort_order: parseInt(pkg.sort_order) || 0,
+        translations: pkg.translations.filter(
+          (tr) => tr.translated_packaging_option_name || tr.translated_custom_description
+        ),
+      }));
 
-      const authHeader = getAuthHeader();
-      const formData = new FormData();
+      const body: Record<string, unknown> = {
+        category_id: parseInt(categoryId, 10),
+        seller_user_id: sellerUserId,
+        translations: validatedTranslations,
+        packaging_options: validatedPackagingOptions,
+        is_organic: isOrganic,
+        is_local_saudi_product: isLocalSaudiProduct,
+        tags: [],
+      };
 
-      formData.append("category_id", categoryId);
-      formData.append("translations", validatedTranslations);
-      formData.append("packaging_options", validatedPackagingOptions);
-
-      if (sellerUserId) {
-        formData.append("seller_user_id", sellerUserId);
+      const basePriceNum = parseFloat(basePricePerUnit);
+      if (basePricePerUnit && !Number.isNaN(basePriceNum)) {
+        body.base_price_per_unit = basePriceNum;
       }
-
-      if (basePricePerUnit) {
-        formData.append("base_price_per_unit", basePricePerUnit);
-      }
-      if (unitOfMeasureId) {
-        formData.append("unit_of_measure_id", unitOfMeasureId);
+      const unitNum = parseInt(unitOfMeasureId, 10);
+      if (unitOfMeasureId && !Number.isNaN(unitNum)) {
+        body.unit_of_measure_id = unitNum;
       }
       if (countryOfOriginCode) {
-        formData.append("country_of_origin_code", countryOfOriginCode);
+        body.country_of_origin_code = countryOfOriginCode;
       }
-      formData.append("is_organic", isOrganic.toString());
-      formData.append("is_local_saudi_product", isLocalSaudiProduct.toString());
       if (mainImageUrl) {
-        formData.append("main_image_url", mainImageUrl);
+        body.main_image_url = mainImageUrl;
       }
       if (sku) {
-        formData.append("sku", sku);
-      }
-      if (tags) {
-        formData.append("tags", tags);
-      }
-      if (image) {
-        formData.append("image", image);
+        body.sku = sku;
       }
 
-      const response = await fetch("http://127.0.0.1:8000/api/v1/products/", {
+      const authHeader = getAuthHeader();
+      const response = await fetch("https://api-testing.mothmerah.sa/admin/products/create", {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           ...authHeader,
         },
-        body: formData,
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.message || errorData.detail || "فشل في إنشاء المنتج"
-        );
+        let errorMessage = "فشل في إنشاء المنتج";
+        if (errorData.message && typeof errorData.message === "string") {
+          errorMessage = errorData.message;
+        } else if (errorData.detail) {
+          if (Array.isArray(errorData.detail)) {
+            const parts = errorData.detail.map((d: { loc?: unknown[]; msg?: string }) => {
+              const loc = Array.isArray(d.loc) ? d.loc.join(".") : "";
+              const msg = typeof d.msg === "string" ? d.msg : "";
+              return loc ? `${loc}: ${msg}` : msg;
+            });
+            errorMessage = parts.length > 0 ? parts.join("; ") : errorMessage;
+          } else if (typeof errorData.detail === "string") {
+            errorMessage = errorData.detail;
+          }
+        }
+        throw new Error(errorMessage);
       }
 
       // Reset form
@@ -324,7 +327,6 @@ export default function CreateProductForm({
       setIsLocalSaudiProduct(false);
       setMainImageUrl("");
       setSku("");
-      setTags("");
       setSellerUserId("");
       setImage(null);
       setTranslationsData([
@@ -486,17 +488,6 @@ export default function CreateProductForm({
                   placeholder="SKU-12345"
                   defaultValue={sku}
                   onChange={(e) => setSku(e.target.value)}
-                />
-              </div>
-
-              {/* Tags */}
-              <div>
-                <Label>العلامات (مفصولة بفواصل)</Label>
-                <Input
-                  type="text"
-                  placeholder="خضروات, طازج, عضوي"
-                  defaultValue={tags}
-                  onChange={(e) => setTags(e.target.value)}
                 />
               </div>
 

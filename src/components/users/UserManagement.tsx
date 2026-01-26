@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -97,21 +98,18 @@ interface User {
   preferred_language: PreferredLanguage;
 }
 
-interface VerificationStatusTranslation {
-  language_code: string;
-  translated_status_name: string;
-  translated_description: string | null;
+interface UserVerificationStatusOption {
   user_verification_status_id: number;
+  status_name_key: string;
 }
 
-interface VerificationStatus {
-  status_name_key: string;
-  description_key: string;
-  user_verification_status_id: number;
-  created_at: string;
-  updated_at: string;
-  translations: VerificationStatusTranslation[];
-}
+const USER_VERIFICATION_STATUSES: UserVerificationStatusOption[] = [
+  { user_verification_status_id: 1, status_name_key: "NOT_VERIFIED"},
+  { user_verification_status_id: 2, status_name_key: "PENDING_REVIEW"},
+  { user_verification_status_id: 3, status_name_key: "VERIFIED"},
+  { user_verification_status_id: 4, status_name_key: "REJECTED"},
+  { user_verification_status_id: 5, status_name_key: "ACTIVE"},
+];
 
 const getArabicTranslation = (
   translations: Translation[],
@@ -121,19 +119,13 @@ const getArabicTranslation = (
   return arabicTranslation?.[field] || "";
 };
 
-const getVerificationStatusArabicTranslation = (
-  translations: VerificationStatusTranslation[] | Translation[]
+const getVerificationStatusLabel = (
+  statusNameKey: string,
+  t: (key: string) => string
 ): string => {
-  const arabicTranslation = translations.find((t) => t.language_code === "ar");
-  if (arabicTranslation) {
-    // Check if it's VerificationStatusTranslation (has required translated_status_name)
-    if ("translated_status_name" in arabicTranslation && typeof arabicTranslation.translated_status_name === "string") {
-      return arabicTranslation.translated_status_name;
-    }
-    // Otherwise it's Translation (has optional translated_status_name)
-    return (arabicTranslation as Translation).translated_status_name || "";
-  }
-  return "";
+  const key = `users.management.verificationStatuses.${statusNameKey}`;
+  const translated = t(key);
+  return translated === key ? statusNameKey : translated;
 };
 
 const formatDate = (dateString: string | null, t: (key: string) => string): string => {
@@ -165,9 +157,6 @@ export default function UserManagement() {
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [selectedUserForStatusChange, setSelectedUserForStatusChange] =
     useState<User | null>(null);
-  const [verificationStatuses, setVerificationStatuses] = useState<
-    VerificationStatus[]
-  >([]);
   const [selectedStatusId, setSelectedStatusId] = useState<number | null>(null);
   const [reasonForChange, setReasonForChange] = useState("");
   const [isChangingStatus, setIsChangingStatus] = useState(false);
@@ -181,7 +170,7 @@ export default function UserManagement() {
 
 
       const response = await fetch(
-        `http://127.0.0.1:8000/admin/users`,
+        `https://api-testing.mothmerah.sa/admin/users/`,
         {
           method: "GET",
           headers: {
@@ -209,7 +198,7 @@ export default function UserManagement() {
 
   useEffect(() => {
     fetchUsers();
-  }, [fetchUsers]);
+  }, []);
 
   const toggleUserSelection = (userId: string) => {
     setSelectedUsers((prev) =>
@@ -249,7 +238,7 @@ export default function UserManagement() {
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        `http://127.0.0.1:8000/admin/users/${userId}`,
+        `https://api-testing.mothmerah.sa/admin/users/${userId}`,
         {
           method: "DELETE",
           headers: {
@@ -283,42 +272,11 @@ export default function UserManagement() {
     }
   };
 
-  const fetchVerificationStatuses = useCallback(async () => {
-    try {
-      const authHeader = getAuthHeader();
-      const response = await fetch(
-        "http://127.0.0.1:8000/admin/verification/user-verification-statuses",
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeader,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch verification statuses");
-      }
-
-      const data: VerificationStatus[] = await response.json();
-      setVerificationStatuses(data);
-    } catch (err) {
-      console.error("Error fetching verification statuses:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : t("users.management.errors.fetchStatusesError")
-      );
-    }
-  }, [t]);
-
   const handleOpenStatusModal = (user: User) => {
     setSelectedUserForStatusChange(user);
     setSelectedStatusId(user.user_verification_status_id);
     setReasonForChange("");
     setIsStatusModalOpen(true);
-    fetchVerificationStatuses();
   };
 
   const handleCloseStatusModal = () => {
@@ -340,7 +298,7 @@ export default function UserManagement() {
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        `http://127.0.0.1:8000/admin/users/${selectedUserForStatusChange.user_id}/status`,
+        `https://api-testing.mothmerah.sa/admin/users/${selectedUserForStatusChange.user_id}/status`,
         {
           method: "PATCH",
           headers: {
@@ -604,12 +562,10 @@ export default function UserManagement() {
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   {t("users.management.statusModal.currentStatus")}{" "}
                   <span className="font-medium text-gray-800 dark:text-white/90">
-                    {getVerificationStatusArabicTranslation(
-                      selectedUserForStatusChange.user_verification_status
-                        .translations
-                    ) ||
-                      selectedUserForStatusChange.user_verification_status
-                        .status_name_key}
+                    {getArabicTranslation(
+                      selectedUserForStatusChange.account_status.translations,
+                      "translated_status_name"
+                    ) || selectedUserForStatusChange.account_status.status_name_key}
                   </span>
                 </p>
               </div>
@@ -619,26 +575,43 @@ export default function UserManagement() {
                   {t("users.management.statusModal.newStatus")} <span className="text-error-500">*</span>
                 </Label>
                 <select
-                  value={selectedStatusId || ""}
-                  onChange={(e) =>
-                    setSelectedStatusId(parseInt(e.target.value, 10))
-                  }
+                  value={String(selectedStatusId)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setSelectedStatusId(v === "" ? null : parseInt(v, 10));
+                  }}
                   className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
                 >
                   <option value="">{t("users.management.statusModal.selectStatus")}</option>
-                  {verificationStatuses.map((status) => {
-                    const arabicName = getVerificationStatusArabicTranslation(
-                      status.translations
+                  {(() => {
+                    const currentId = selectedUserForStatusChange.user_verification_status_id;
+                    const inList = USER_VERIFICATION_STATUSES.some(
+                      (s) => s.user_verification_status_id === currentId
                     );
                     return (
-                      <option
-                        key={status.user_verification_status_id}
-                        value={status.user_verification_status_id}
-                      >
-                        {arabicName || status.status_name_key}
-                      </option>
+                      <>
+                        {!inList && (
+                          <option
+                            key={`current-${currentId}`}
+                            value={String(currentId)}
+                          >
+                            {getVerificationStatusLabel(
+                              selectedUserForStatusChange.user_verification_status.status_name_key,
+                              t
+                            )}
+                          </option>
+                        )}
+                        {USER_VERIFICATION_STATUSES.map((status) => (
+                          <option
+                            key={status.user_verification_status_id}
+                            value={String(status.user_verification_status_id)}
+                          >
+                            {getVerificationStatusLabel(status.status_name_key, t)}
+                          </option>
+                        ))}
+                      </>
                     );
-                  })}
+                  })()}
                 </select>
               </div>
 

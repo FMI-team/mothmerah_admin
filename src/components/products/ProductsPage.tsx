@@ -16,6 +16,7 @@ import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { getAuthHeader } from "@/lib/auth";
 import Button from "../ui/button/Button";
 import CreateProductForm from "./CreateProductForm";
+import EditProductForm from "./EditProductForm";
 
 // ------------- API Types -------------
 
@@ -75,7 +76,7 @@ interface ApiProduct {
   category_id: number;
   base_price_per_unit: number;
   unit_of_measure_id: number;
-  country_of_origin_code: string;
+  country_of_origin_code: string | null;
   is_organic: boolean;
   is_local_saudi_product: boolean;
   main_image_url: string | null;
@@ -214,10 +215,13 @@ export default function ProductsPage() {
     null
   );
   const [currentPage, setCurrentPage] = useState(1);
+  const [apiProducts, setApiProducts] = useState<ApiProduct[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateProductModalOpen, setIsCreateProductModalOpen] = useState(false);
+  const [isEditProductModalOpen, setIsEditProductModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<ApiProduct | null>(null);
 
   const itemsPerPage = 6;
 
@@ -227,7 +231,7 @@ export default function ProductsPage() {
 
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("http://127.0.0.1:8000/api/v1/products/", {
+      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/products/", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -240,8 +244,9 @@ export default function ProductsPage() {
       }
 
       const data: ApiProduct[] = await response.json();
-      const mapped = (data || []).map(mapApiProductToProduct);
-      setProducts(mapped);
+      const list = data || [];
+      setApiProducts(list);
+      setProducts(list.map(mapApiProductToProduct));
     } catch (err) {
       console.error("Error fetching products:", err);
       setError(
@@ -464,24 +469,6 @@ export default function ProductsPage() {
             </button>
           ))}
         </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              تاريخ اضافة المنتج
-            </span>
-            <input
-              type="text"
-              placeholder="12/02/2025"
-              className="h-10 w-28 rounded-lg border border-gray-200 bg-white px-3 text-xs text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90"
-            />
-            <input
-              type="text"
-              placeholder="18/02/2025"
-              className="h-10 w-28 rounded-lg border border-gray-200 bg-white px-3 text-xs text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90"
-            />
-          </div>
-        </div>
       </div>
 
       {/* Products Table */}
@@ -644,6 +631,13 @@ export default function ProductsPage() {
                             <DropdownItem
                               onItemClick={() => {
                                 setActionDropdownOpen(null);
+                                const apiProduct = apiProducts.find(
+                                  (p) => p.product_id === product.id
+                                );
+                                if (apiProduct) {
+                                  setEditingProduct(apiProduct);
+                                  setIsEditProductModalOpen(true);
+                                }
                               }}
                               className="flex w-full rounded-lg font-normal text-right text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
                             >
@@ -715,6 +709,19 @@ export default function ProductsPage() {
         onSuccess={() => {
           fetchProducts();
         }}
+      />
+
+      <EditProductForm
+        key={editingProduct?.product_id ?? "edit-form"}
+        isOpen={isEditProductModalOpen}
+        onClose={() => {
+          setIsEditProductModalOpen(false);
+          setEditingProduct(null);
+        }}
+        onSuccess={() => {
+          fetchProducts();
+        }}
+        product={editingProduct}
       />
     </div>
   );

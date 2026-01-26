@@ -206,7 +206,7 @@ export default function WholesalerProductsPage() {
 
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("http://127.0.0.1:8000/api/v1/me", {
+      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/me", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",

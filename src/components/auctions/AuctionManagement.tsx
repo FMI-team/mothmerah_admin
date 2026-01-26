@@ -186,7 +186,7 @@ export default function AuctionManagement() {
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        "http://127.0.0.1:8000/admin/admin/auctions/statuses",
+        "https://api-testing.mothmerah.sa/admin/admin/auctions/statuses",
         {
           method: "GET",
           headers: {
@@ -214,7 +214,7 @@ export default function AuctionManagement() {
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        "http://127.0.0.1:8000/admin/admin/auctions/types",
+        "https://api-testing.mothmerah.sa/admin/admin/auctions/types",
         {
           method: "GET",
           headers: {
