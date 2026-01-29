@@ -39,21 +39,8 @@ const UNITS_OF_MEASURE: UnitOfMeasure[] = [
 interface CreateProductFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: () => void;
-}
-
-interface User {
-  user_id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  user_type: {
-    user_type_name_key: string;
-    translations: Array<{
-      language_code: string;
-      translated_user_type_name?: string;
-    }>;
-  };
+  /** Called with the created product from the API response, if any */
+  onSuccess?: (createdProduct?: unknown) => void | Promise<void>;
 }
 
 interface TranslationFormData {
@@ -96,8 +83,6 @@ export default function CreateProductForm({
 }: CreateProductFormProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
-  const [wholesalers, setWholesalers] = useState<User[]>([]);
-  const [isLoadingWholesalers, setIsLoadingWholesalers] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -110,8 +95,8 @@ export default function CreateProductForm({
   const [isLocalSaudiProduct, setIsLocalSaudiProduct] = useState(false);
   const [mainImageUrl, setMainImageUrl] = useState<string>("");
   const [sku, setSku] = useState<string>("");
+  // seller_user_id سيكون دائماً هو المستخدم الحالي
   const [sellerUserId, setSellerUserId] = useState<string>("");
-  const [image, setImage] = useState<File | null>(null);
 
   const [translationsData, setTranslationsData] = useState<TranslationFormData[]>([
     { language_code: "ar", translated_product_name: "", translated_description: "", translated_short_description: "" },
@@ -163,11 +148,10 @@ export default function CreateProductForm({
     }
   }, []);
 
-  const fetchWholesalers = useCallback(async () => {
-    setIsLoadingWholesalers(true);
+  const fetchCurrentUser = useCallback(async () => {
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("https://api-testing.mothmerah.sa/admin/users/", {
+      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/users/me", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -176,37 +160,25 @@ export default function CreateProductForm({
       });
 
       if (!response.ok) {
-        throw new Error("فشل في جلب المستخدمين");
+        console.error("Failed to fetch current user for seller_user_id");
+        return;
       }
 
-      const data: User[] = await response.json();
-      const wholesalerUsers = data.filter(
-        (user) => user.user_type?.user_type_name_key === "WHOLESALER"
-      );
-      setWholesalers(wholesalerUsers);
+      const data = await response.json();
+      if (data?.user_id) {
+        setSellerUserId(data.user_id);
+      }
     } catch (err) {
-      console.error("Error fetching wholesalers:", err);
-      setError(
-        err instanceof Error ? err.message : "حدث خطأ في جلب المستخدمين"
-      );
-    } finally {
-      setIsLoadingWholesalers(false);
+      console.error("Error fetching current user for seller_user_id:", err);
     }
   }, []);
 
   useEffect(() => {
     if (isOpen) {
       fetchCategories();
-      fetchWholesalers();
+      fetchCurrentUser();
     }
-  }, [isOpen, fetchCategories, fetchWholesalers]);
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setImage(e.target.files[0]);
-    }
-  };
-
+  }, [isOpen, fetchCategories, fetchCurrentUser]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -217,13 +189,11 @@ export default function CreateProductForm({
       return;
     }
 
-    if (!sellerUserId) {
-      setError("يرجى اختيار المستخدم البائع");
-      return;
-    }
-
     const hasValidTranslations = translationsData.some(
-      (t) => t.translated_product_name && t.translated_description && t.translated_short_description
+      (t) =>
+        t.translated_product_name &&
+        t.translated_description &&
+        t.translated_short_description
     );
     if (!hasValidTranslations) {
       setError("يرجى إدخال الترجمات (اسم المنتج، الوصف، والوصف المختصر)");
@@ -232,10 +202,21 @@ export default function CreateProductForm({
 
     // Validate packaging options
     const hasValidPackaging = packagingOptionsData.some(
-      (p) => p.quantity_in_packaging && p.unit_of_measure_id_for_quantity && p.base_price
+      (p) =>
+        p.quantity_in_packaging &&
+        p.unit_of_measure_id_for_quantity &&
+        p.base_price
     );
     if (!hasValidPackaging) {
       setError("يرجى إدخال خيارات التعبئة (الكمية، وحدة القياس، والسعر)");
+      return;
+    }
+
+    // seller_user_id هو المستخدم الحالي
+    if (!sellerUserId) {
+      setError(
+        "تعذّر تحديد معرف المستخدم الحالي، يرجى إعادة تحميل الصفحة ثم المحاولة مرة أخرى."
+      );
       return;
     }
 
@@ -243,59 +224,64 @@ export default function CreateProductForm({
 
     try {
       const validatedTranslations = translationsData.filter(
-        (t) => t.translated_product_name || t.translated_description || t.translated_short_description
+        (t) =>
+          t.translated_product_name ||
+          t.translated_description ||
+          t.translated_short_description
       );
 
       const validatedPackagingOptions = packagingOptionsData.map((pkg) => ({
         quantity_in_packaging: parseFloat(pkg.quantity_in_packaging) || 0,
-        unit_of_measure_id_for_quantity: parseInt(pkg.unit_of_measure_id_for_quantity) || 0,
+        unit_of_measure_id_for_quantity:
+          parseInt(pkg.unit_of_measure_id_for_quantity, 10) || 0,
         base_price: parseFloat(pkg.base_price) || 0,
         sku: pkg.sku || null,
         barcode: pkg.barcode || null,
         is_default_option: pkg.is_default_option,
         is_active: pkg.is_active,
-        sort_order: parseInt(pkg.sort_order) || 0,
+        sort_order: parseInt(pkg.sort_order, 10) || 0,
         translations: pkg.translations.filter(
-          (tr) => tr.translated_packaging_option_name || tr.translated_custom_description
+          (tr) =>
+            tr.translated_packaging_option_name ||
+            tr.translated_custom_description
         ),
       }));
 
-      const body: Record<string, unknown> = {
-        category_id: parseInt(categoryId, 10),
-        seller_user_id: sellerUserId,
-        translations: validatedTranslations,
-        packaging_options: validatedPackagingOptions,
-        is_organic: isOrganic,
-        is_local_saudi_product: isLocalSaudiProduct,
-        tags: [],
-      };
+      const formData = new FormData();
 
-      const basePriceNum = parseFloat(basePricePerUnit);
-      if (basePricePerUnit && !Number.isNaN(basePriceNum)) {
-        body.base_price_per_unit = basePriceNum;
+      formData.append("category_id", categoryId);
+      formData.append("seller_user_id", sellerUserId);
+      formData.append("translations", JSON.stringify(validatedTranslations));
+      formData.append(
+        "packaging_options",
+        JSON.stringify(validatedPackagingOptions)
+      );
+      formData.append("is_organic", String(isOrganic));
+      formData.append("is_local_saudi_product", String(isLocalSaudiProduct));
+
+      if (basePricePerUnit) {
+        formData.append("base_price_per_unit", basePricePerUnit);
       }
-      const unitNum = parseInt(unitOfMeasureId, 10);
-      if (unitOfMeasureId && !Number.isNaN(unitNum)) {
-        body.unit_of_measure_id = unitNum;
+      if (unitOfMeasureId) {
+        formData.append("unit_of_measure_id", unitOfMeasureId);
       }
       if (countryOfOriginCode) {
-        body.country_of_origin_code = countryOfOriginCode;
+        formData.append("country_of_origin_code", countryOfOriginCode);
       }
       if (mainImageUrl) {
-        body.main_image_url = mainImageUrl;
+        formData.append("main_image_url", mainImageUrl);
       }
       if (sku) {
-        body.sku = sku;
+        formData.append("sku", sku);
       }
 
       const authHeader = getAuthHeader();
-      const response = await fetch("https://api-testing.mothmerah.sa/admin/products/create", {
+      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/products/", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           ...authHeader,
         },
-        body: JSON.stringify(body),
+        body: formData,
       });
 
       if (!response.ok) {
@@ -305,11 +291,13 @@ export default function CreateProductForm({
           errorMessage = errorData.message;
         } else if (errorData.detail) {
           if (Array.isArray(errorData.detail)) {
-            const parts = errorData.detail.map((d: { loc?: unknown[]; msg?: string }) => {
-              const loc = Array.isArray(d.loc) ? d.loc.join(".") : "";
-              const msg = typeof d.msg === "string" ? d.msg : "";
-              return loc ? `${loc}: ${msg}` : msg;
-            });
+            const parts = errorData.detail.map(
+              (d: { loc?: unknown[]; msg?: string }) => {
+                const loc = Array.isArray(d.loc) ? d.loc.join(".") : "";
+                const msg = typeof d.msg === "string" ? d.msg : "";
+                return loc ? `${loc}: ${msg}` : msg;
+              }
+            );
             errorMessage = parts.length > 0 ? parts.join("; ") : errorMessage;
           } else if (typeof errorData.detail === "string") {
             errorMessage = errorData.detail;
@@ -317,6 +305,8 @@ export default function CreateProductForm({
         }
         throw new Error(errorMessage);
       }
+
+      const createdProduct = await response.json().catch(() => undefined);
 
       // Reset form
       setCategoryId("");
@@ -328,10 +318,19 @@ export default function CreateProductForm({
       setMainImageUrl("");
       setSku("");
       setSellerUserId("");
-      setImage(null);
       setTranslationsData([
-        { language_code: "ar", translated_product_name: "", translated_description: "", translated_short_description: "" },
-        { language_code: "en", translated_product_name: "", translated_description: "", translated_short_description: "" },
+        {
+          language_code: "ar",
+          translated_product_name: "",
+          translated_description: "",
+          translated_short_description: "",
+        },
+        {
+          language_code: "en",
+          translated_product_name: "",
+          translated_description: "",
+          translated_short_description: "",
+        },
       ]);
       setPackagingOptionsData([
         {
@@ -344,16 +343,23 @@ export default function CreateProductForm({
           is_active: true,
           sort_order: "1",
           translations: [
-            { language_code: "ar", translated_packaging_option_name: "", translated_custom_description: "" },
-            { language_code: "en", translated_packaging_option_name: "", translated_custom_description: "" },
+            {
+              language_code: "ar",
+              translated_packaging_option_name: "",
+              translated_custom_description: "",
+            },
+            {
+              language_code: "en",
+              translated_packaging_option_name: "",
+              translated_custom_description: "",
+            },
           ],
         },
       ]);
 
-      onSuccess?.();
+      await Promise.resolve(onSuccess?.(createdProduct));
       onClose();
     } catch (err) {
-      console.error("Error creating product:", err);
       setError(
         err instanceof Error ? err.message : "حدث خطأ في إنشاء المنتج"
       );
@@ -552,24 +558,6 @@ export default function CreateProductForm({
                 ))}
               </div>
 
-              <div>
-                <Label>
-                  المستخدم البائع <span className="text-error-500">*</span>
-                </Label>
-                <div className="relative">
-                  <Select
-                    options={wholesalers.map((user) => ({
-                      value: user.user_id,
-                      label: `${user.first_name} ${user.last_name} (${user.email})`,
-                    }))}
-                    placeholder={isLoadingWholesalers ? "جاري التحميل..." : "اختر المستخدم البائع"}
-                    onChange={(value) => setSellerUserId(value)}
-                    defaultValue={sellerUserId}
-                    className="dark:bg-dark-900"
-                  />
-                </div>
-              </div>
-
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <Label>
@@ -749,8 +737,9 @@ export default function CreateProductForm({
                           </div>
                           <div className="space-y-2">
                             <div>
-                              <Label className="text-xs">اسم خيار التعبئة</Label>
+                              <Label className="text-xs">اسم خيار التعبئة *</Label>
                               <input
+                              required
                                 type="text"
                                 placeholder={translation.language_code === "ar" ? "كيلوغرام واحد" : "One Kilogram"}
                                 value={translation.translated_packaging_option_name}
@@ -782,21 +771,6 @@ export default function CreateProductForm({
                     </div>
                   </div>
                 ))}
-              </div>
-
-              <div>
-                <Label>رفع صورة</Label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-                />
-                {image && (
-                  <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                    الملف المحدد: {image.name}
-                  </p>
-                )}
               </div>
             </div>
           </div>

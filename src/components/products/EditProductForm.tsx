@@ -20,21 +20,16 @@ interface Category {
   translations: CategoryTranslation[];
 }
 
-interface User {
-  user_id: string;
-  first_name: string;
-  last_name: string;
-  user_type?: { user_type_name_key: string };
-}
-
 interface ProductForEdit {
   product_id: string;
   category_id: number;
   country_of_origin_code: string | null;
   is_organic: boolean;
   is_local_saudi_product: boolean;
+  main_image_url?: string | null;
   sku: string | null;
-  seller_user_id: string;
+  tags?: unknown[];
+  seller_user_id?: string;
   status: { product_status_id: number; status_name_key: string };
 }
 
@@ -75,8 +70,8 @@ export default function EditProductForm({
 }: EditProductFormProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
-  const [wholesalers, setWholesalers] = useState<User[]>([]);
-  const [isLoadingWholesalers, setIsLoadingWholesalers] = useState(false);
+  const [isLoadingProduct, setIsLoadingProduct] = useState(false);
+  const [productData, setProductData] = useState<ProductForEdit | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,9 +79,30 @@ export default function EditProductForm({
   const [countryOfOriginCode, setCountryOfOriginCode] = useState<string>("");
   const [isOrganic, setIsOrganic] = useState(false);
   const [isLocalSaudiProduct, setIsLocalSaudiProduct] = useState(false);
+  const [mainImageUrl, setMainImageUrl] = useState<string>("");
   const [sku, setSku] = useState<string>("");
+  const [tags, setTags] = useState<string[]>([]);
   const [productStatusId, setProductStatusId] = useState<string>("");
-  const [sellerUserId, setSellerUserId] = useState<string>("");
+
+  const fetchProduct = useCallback(async (productId: string) => {
+    setIsLoadingProduct(true);
+    setError(null);
+    try {
+      const authHeader = getAuthHeader();
+      const res = await fetch(`https://api-testing.mothmerah.sa/api/v1/products/${productId}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json", ...authHeader },
+      });
+      if (!res.ok) throw new Error("فشل في جلب بيانات المنتج");
+      const data = await res.json();
+      setProductData(data as ProductForEdit);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "حدث خطأ في جلب بيانات المنتج");
+      setProductData(null);
+    } finally {
+      setIsLoadingProduct(false);
+    }
+  }, []);
 
   const fetchCategories = useCallback(async () => {
     setIsLoadingCategories(true);
@@ -106,69 +122,58 @@ export default function EditProductForm({
     }
   }, []);
 
-  const fetchWholesalers = useCallback(async () => {
-    setIsLoadingWholesalers(true);
-    try {
-      const authHeader = getAuthHeader();
-      const res = await fetch("https://api-testing.mothmerah.sa/admin/users/", {
-        method: "GET",
-        headers: { "Content-Type": "application/json", ...authHeader },
-      });
-      if (!res.ok) throw new Error("فشل في جلب المستخدمين");
-      const data: User[] = await res.json();
-      const wholesalerUsers = data.filter(
-        (u) => u.user_type?.user_type_name_key === "WHOLESALER"
-      );
-      setWholesalers(wholesalerUsers);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "حدث خطأ في جلب المستخدمين");
-    } finally {
-      setIsLoadingWholesalers(false);
-    }
-  }, []);
-
   useEffect(() => {
     if (isOpen) {
       fetchCategories();
-      fetchWholesalers();
+      if (product?.product_id) {
+        fetchProduct(product.product_id);
+      } else {
+        setProductData(null);
+      }
+    } else {
+      setProductData(null);
     }
-  }, [isOpen, fetchCategories, fetchWholesalers]);
+  }, [isOpen, product?.product_id, fetchCategories, fetchProduct]);
 
   useEffect(() => {
-    if (product) {
-      setCategoryId(String(product.category_id));
-      setCountryOfOriginCode(product.country_of_origin_code ?? "");
-      setIsOrganic(product.is_organic);
-      setIsLocalSaudiProduct(product.is_local_saudi_product);
-      setSku(product.sku ?? "");
-      setProductStatusId(String(product.status.product_status_id));
-      setSellerUserId(product.seller_user_id);
-      setError(null);
+    const source = productData ?? product;
+    if (source) {
+      setCategoryId(String(source.category_id));
+      setCountryOfOriginCode(source.country_of_origin_code ?? "");
+      setIsOrganic(source.is_organic);
+      setIsLocalSaudiProduct(source.is_local_saudi_product);
+      setMainImageUrl(source.main_image_url ?? "");
+      setSku(source.sku ?? "");
+      setTags(Array.isArray(source.tags) ? (source.tags as string[]) : []);
+      setProductStatusId(String(source.status.product_status_id));
+      if (productData) setError(null);
     }
-  }, [product]);
+  }, [productData, product]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!product) return;
+    const targetProduct = productData ?? product;
+    if (!targetProduct?.product_id) return;
     setError(null);
     setIsSubmitting(true);
 
     try {
       const body: Record<string, unknown> = {
         category_id: parseInt(categoryId, 10),
-        country_of_origin_code: countryOfOriginCode || null,
+        country_of_origin_code: countryOfOriginCode || "",
         is_organic: isOrganic,
         is_local_saudi_product: isLocalSaudiProduct,
-        sku: sku || null,
+        main_image_url: mainImageUrl || "",
+        sku: sku || "",
+        tags,
         product_status_id: parseInt(productStatusId, 10),
-        seller_user_id: sellerUserId,
       };
 
       const authHeader = getAuthHeader();
       const res = await fetch(
-        `https://api-testing.mothmerah.sa/admin/products/update/${product.product_id}`,
+        `https://api-testing.mothmerah.sa/api/v1/products/${targetProduct.product_id}`,
         {
-          method: "PUT",
+          method: "PATCH",
           headers: {
             "Content-Type": "application/json",
             ...authHeader,
@@ -213,17 +218,13 @@ export default function EditProductForm({
       label: getArabicTranslation(c.translations, "translated_category_name") || c.category_name_key,
     }));
 
-  const sellerOptions = wholesalers.map((u) => ({
-    value: u.user_id,
-    label: `${u.first_name} ${u.last_name}`,
-  }));
-
   const statusOptions = PRODUCT_STATUSES.map((s) => ({
     value: String(s.product_status_id),
     label: STATUS_LABELS[s.status_name_key] ?? s.status_name_key,
   }));
 
-  if (!product) return null;
+  const displayProduct = productData ?? product;
+  if (!displayProduct && !isLoadingProduct) return null;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-[600px] m-4">
@@ -243,7 +244,12 @@ export default function EditProductForm({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="flex flex-col">
+        {isLoadingProduct ? (
+          <div className="flex items-center justify-center py-12 text-sm text-gray-500 dark:text-gray-400">
+            جاري تحميل بيانات المنتج...
+          </div>
+        ) : (
+        <form key={displayProduct?.product_id ?? "edit-form"} onSubmit={handleSubmit} className="flex flex-col">
           <div className="custom-scrollbar max-h-[70vh] overflow-y-auto px-2 pb-3">
             <div className="space-y-6">
               <div>
@@ -286,6 +292,17 @@ export default function EditProductForm({
               </div>
 
               <div>
+                <Label>رابط الصورة الرئيسية</Label>
+                <input
+                  type="url"
+                  placeholder="https://example.com/image.jpg"
+                  value={mainImageUrl}
+                  onChange={(e) => setMainImageUrl(e.target.value)}
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                />
+              </div>
+
+              <div>
                 <Label>SKU</Label>
                 <input
                   type="text"
@@ -297,23 +314,30 @@ export default function EditProductForm({
               </div>
 
               <div>
+                <Label>الوسوم (مفصولة بفاصلة)</Label>
+                <input
+                  type="text"
+                  placeholder="وسم1، وسم2"
+                  value={tags.join(", ")}
+                  onChange={(e) =>
+                    setTags(
+                      e.target.value
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter(Boolean)
+                    )
+                  }
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                />
+              </div>
+
+              <div>
                 <Label>حالة المنتج <span className="text-error-500">*</span></Label>
                 <Select
                   options={statusOptions}
                   placeholder="اختر الحالة"
                   onChange={setProductStatusId}
                   defaultValue={productStatusId}
-                  className="dark:bg-dark-900"
-                />
-              </div>
-
-              <div>
-                <Label>البائع <span className="text-error-500">*</span></Label>
-                <Select
-                  options={sellerOptions}
-                  placeholder={isLoadingWholesalers ? "جاري التحميل..." : "اختر البائع"}
-                  onChange={setSellerUserId}
-                  defaultValue={sellerUserId}
                   className="dark:bg-dark-900"
                 />
               </div>
@@ -338,6 +362,7 @@ export default function EditProductForm({
             </button>
           </div>
         </form>
+        )}
       </div>
     </Modal>
   );

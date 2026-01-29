@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
@@ -16,6 +17,7 @@ import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { getAuthHeader } from "@/lib/auth";
 import Button from "../ui/button/Button";
 import CreateProductForm from "./CreateProductForm";
+import EditProductForm from "./EditProductForm";
 
 // ------------- API Types -------------
 
@@ -102,7 +104,7 @@ interface Product {
   owner: string;
   availableQuantity: string;
   saleType: "ثابت" | "مزاد" | "RFQ";
-  status: "مسودة" | "منشور" | "مرفوض" | "بانتظار الموافقة" | "مؤرشف" | "موقوف مؤقتا";
+  status: ApiStatus["status_name_key"];
   addedDate: string;
 }
 
@@ -137,19 +139,13 @@ const mapApiProductToProduct = (api: ApiProduct): Product => {
   // Map backend status_name_key to Arabic UI status for wholesaler
   let status: Product["status"];
   switch (api.status?.status_name_key) {
-    case "PUBLISHED":
+    case "ACTIVE":
       status = "منشور";
       break;
-    case "REJECTED":
+    case "INACTIVE":
       status = "مرفوض";
       break;
-    case "PENDING_APPROVAL":
-      status = "بانتظار الموافقة";
-      break;
-    case "ARCHIVED":
-      status = "مؤرشف";
-      break;
-    case "SUSPENDED":
+    case "DISCONTINUED":
       status = "موقوف مؤقتا";
       break;
     case "DRAFT":
@@ -193,12 +189,51 @@ export default function WholesalerProductsPage() {
   const [statusFilter, setStatusFilter] = useState("الكل");
   const [startDateFilter, setStartDateFilter] = useState("18/02/2025");
   const [endDateFilter, setEndDateFilter] = useState("12/02/2025");
+  const [apiProducts, setApiProducts] = useState<ApiProduct[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateProductModalOpen, setIsCreateProductModalOpen] = useState(false);
+  const [isEditProductModalOpen, setIsEditProductModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<ApiProduct | null>(null);
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
 
   const itemsPerPage = 6;
+
+  const handleDeleteProduct = useCallback(async (productId: string) => {
+    if (!confirm("هل أنت متأكد من حذف هذا المنتج؟")) return;
+    setDeletingProductId(productId);
+    setError(null);
+    try {
+      const authHeader = getAuthHeader();
+      const response = await fetch(
+        `https://api-testing.mothmerah.sa/api/v1/products/${productId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeader,
+          },
+        }
+      );
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        const msg =
+          (typeof errData?.message === "string" ? errData.message : null) ||
+          (typeof errData?.detail === "string" ? errData.detail : null) ||
+          "فشل في حذف المنتج";
+        throw new Error(msg);
+      }
+      // DELETE is a soft delete (status change); refresh list so UI shows updated status or product is excluded
+      await fetchProducts();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "حدث خطأ في حذف المنتج"
+      );
+    } finally {
+      setDeletingProductId(null);
+    }
+  }, []);
 
   const fetchProducts = useCallback(async () => {
     setIsLoading(true);
@@ -206,7 +241,7 @@ export default function WholesalerProductsPage() {
 
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/me", {
+      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/products/me", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -219,8 +254,9 @@ export default function WholesalerProductsPage() {
       }
 
       const data: ApiProduct[] = await response.json();
-      const mapped = (data || []).map(mapApiProductToProduct);
-      setProducts(mapped);
+      const list = data || [];
+      setApiProducts(list);
+      setProducts(list.map(mapApiProductToProduct));
     } catch (err) {
       console.error("Error fetching products:", err);
       setError(
@@ -705,6 +741,11 @@ export default function WholesalerProductsPage() {
                           <DropdownItem
                             onItemClick={() => {
                               setActionDropdownOpen(null);
+                              const apiProduct = apiProducts.find((p) => p.product_id === product.id);
+                              if (apiProduct) {
+                                setEditingProduct(apiProduct);
+                                setIsEditProductModalOpen(true);
+                              }
                             }}
                             className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
                           >
@@ -713,10 +754,11 @@ export default function WholesalerProductsPage() {
                           <DropdownItem
                             onItemClick={() => {
                               setActionDropdownOpen(null);
+                              handleDeleteProduct(product.id);
                             }}
                             className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-red-300"
                           >
-                            حذف
+                            {deletingProductId === product.id ? "جاري الحذف..." : "حذف"}
                           </DropdownItem>
                         </Dropdown>
                       </div>
@@ -769,14 +811,32 @@ export default function WholesalerProductsPage() {
         )}
       </div>
 
-      {/* Create Product Modal */}
       <CreateProductForm
         isOpen={isCreateProductModalOpen}
         onClose={() => setIsCreateProductModalOpen(false)}
+        onSuccess={async (createdProduct) => {
+          await fetchProducts();
+          if (createdProduct) {
+            const mapped = mapApiProductToProduct(createdProduct as ApiProduct);
+            setProducts((prev) => {
+              if (prev.some((p) => p.id === mapped.id)) return prev;
+              return [mapped, ...prev];
+            });
+          }
+        }}
+      />
+
+      <EditProductForm
+        key={editingProduct?.product_id ?? "edit-form"}
+        isOpen={isEditProductModalOpen}
+        onClose={() => {
+          setIsEditProductModalOpen(false);
+          setEditingProduct(null);
+        }}
         onSuccess={() => {
-          // Refresh products list after successful creation
           fetchProducts();
         }}
+        product={editingProduct}
       />
     </div>
   );

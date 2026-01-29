@@ -281,9 +281,6 @@ export function logout(redirectTo: string = "/signin"): void {
   }
 }
 
-/**
- * Get authorization header for API requests
- */
 export function getAuthHeader(): { Authorization: string } {
   const token = getAccessToken();
   const tokenType = getTokenType();
