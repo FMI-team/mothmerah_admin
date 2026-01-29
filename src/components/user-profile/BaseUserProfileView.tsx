@@ -12,6 +12,7 @@ export default function BaseUserProfileView() {
   const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [, setIsSaving] = useState(false);
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -51,6 +52,45 @@ export default function BaseUserProfileView() {
     fetchCurrentUser();
   }, []);
 
+  const handleSaveInfo = async (updated: Partial<UserDetails>) => {
+    try {
+      setIsSaving(true);
+      setError(null);
+
+      const authHeader = getAuthHeader();
+      const response = await fetch(
+        "https://api-testing.mothmerah.sa/api/v1/users/me",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeader,
+          },
+          body: JSON.stringify({
+            first_name: updated.first_name ?? userDetails?.first_name,
+            last_name: updated.last_name ?? userDetails?.last_name,
+            email: updated.email ?? userDetails?.email,
+            phone_number: updated.phone_number ?? userDetails?.phone_number,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(t("users.profile.errors.updateFailed") || "فشل في تحديث بيانات المستخدم");
+      }
+
+      const data: UserDetails = await response.json();
+      setUserDetails(data);
+    } catch (err) {
+      console.error("Error updating user details:", err);
+      setError(
+        err instanceof Error ? err.message : (t("users.profile.errors.updateError") || "حدث خطأ في تحديث بيانات المستخدم")
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -80,7 +120,10 @@ export default function BaseUserProfileView() {
   return (
     <div className="space-y-6">
       <UserMetaCard userDetails={userDetails} />
-      <UserInfoCard userDetails={userDetails} />
+      <UserInfoCard
+        userDetails={userDetails}
+        onEditSave={handleSaveInfo}
+      />
       <UserAddressCard userDetails={userDetails} />
     </div>
   );
