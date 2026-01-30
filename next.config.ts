@@ -2,44 +2,43 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
-  
-  // ===== إضافة: إعدادات رؤوس التخزين المؤقت =====
+
   async headers() {
     return [
       {
-        // تطبيق على جميع ملفات الـ Static Chunks و CSS
+        // 1. التخزين طويل الأمد للملفات الثابتة (chunks, صور, خطوط)
         source: "/_next/static/:path*",
         headers: [
           {
             key: "Cache-Control",
-            // التخزين لمدة سنة (للملفات التي لا تتغير)
-            value: "public, max-age=31536000, immutable",
+            value: "public, max-age=31536000, immutable", // سنة واحدة
           },
         ],
       },
       {
-        // تطبيق على الصفحة الرئيسية (لتجنب التخزين المطول)
-        source: "/",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "no-cache",
-          },
-        ],
-      },
-      {
-        // تطبيق على باقي الصفحات (اختياري)
+        // 2. تطبيق على جميع صفحات HTML (أهم خطوة!)
+        // هذا النمط يطابق: /signin, /dashboard, /, /products, الخ...
         source: "/:path*",
         headers: [
           {
             key: "Cache-Control",
-            value: "public, max-age=0, must-revalidate",
+            // لا تخزن HTML مؤقتاً على الإطلاق
+            value: "no-cache, no-store, must-revalidate",
+          },
+        ],
+      },
+      {
+        // 3. إعدادات خاصة بملفات المستوى الأعلى (أيقونة، ملف نصي)
+        source: "/:all*(svg|jpg|png|ico|txt)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400", // يوم واحد
           },
         ],
       },
     ];
   },
-  // ===== نهاية الإضافة =====
 
   webpack(config) {
     config.module.rules.push({
@@ -57,7 +56,6 @@ const nextConfig: NextConfig = {
       },
     },
   },
-  
 };
 
 export default nextConfig;
