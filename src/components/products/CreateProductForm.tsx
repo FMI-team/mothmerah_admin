@@ -739,7 +739,7 @@ export default function CreateProductForm({
                             <div>
                               <Label className="text-xs">اسم خيار التعبئة *</Label>
                               <input
-                              required
+                                required
                                 type="text"
                                 placeholder={translation.language_code === "ar" ? "كيلوغرام واحد" : "One Kilogram"}
                                 value={translation.translated_packaging_option_name}

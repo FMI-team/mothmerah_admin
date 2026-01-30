@@ -21,7 +21,7 @@ export default function BaseUserProfileView() {
 
       try {
         const authHeader = getAuthHeader();
-        
+
         const meResponse = await fetch(
           "https://api-testing.mothmerah.sa/api/v1/users/me",
           {

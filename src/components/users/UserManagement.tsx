@@ -104,11 +104,11 @@ interface UserVerificationStatusOption {
 }
 
 const USER_VERIFICATION_STATUSES: UserVerificationStatusOption[] = [
-  { user_verification_status_id: 1, status_name_key: "NOT_VERIFIED"},
-  { user_verification_status_id: 2, status_name_key: "PENDING_REVIEW"},
-  { user_verification_status_id: 3, status_name_key: "VERIFIED"},
-  { user_verification_status_id: 4, status_name_key: "REJECTED"},
-  { user_verification_status_id: 5, status_name_key: "ACTIVE"},
+  { user_verification_status_id: 1, status_name_key: "NOT_VERIFIED" },
+  { user_verification_status_id: 2, status_name_key: "PENDING_REVIEW" },
+  { user_verification_status_id: 3, status_name_key: "VERIFIED" },
+  { user_verification_status_id: 4, status_name_key: "REJECTED" },
+  { user_verification_status_id: 5, status_name_key: "ACTIVE" },
 ];
 
 const getArabicTranslation = (

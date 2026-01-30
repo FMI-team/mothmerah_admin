@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
 import { getAuthHeader } from "@/lib/auth";
 import Badge from "../ui/badge/Badge";
@@ -127,10 +128,12 @@ const getStatusBadgeColor = (statusName: string): "success" | "warning" | "error
 export default function AuctionDetailView() {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
   const auctionId = params?.auctionId as string;
   const [auction, setAuction] = useState<ApiAuction | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const fetchAuctionDetails = async () => {
@@ -145,26 +148,26 @@ export default function AuctionDetailView() {
 
       try {
         const authHeader = getAuthHeader();
-        const response = await fetch("https://api-testing.mothmerah.sa/api/v1/auctions/", {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeader,
-          },
-        });
+        const response = await fetch(
+          `https://api-testing.mothmerah.sa/api/v1/auctions/${auctionId}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              ...authHeader,
+            },
+          }
+        );
 
         if (!response.ok) {
-          throw new Error("فشل في جلب المزادات");
+          if (response.status === 404) {
+            throw new Error("المزاد غير موجود");
+          }
+          throw new Error("فشل في جلب تفاصيل المزاد");
         }
 
-        const data: ApiAuction[] = await response.json();
-        const foundAuction = data.find((a) => a.auction_id === auctionId);
-
-        if (!foundAuction) {
-          throw new Error("المزاد غير موجود");
-        }
-
-        setAuction(foundAuction);
+        const data: ApiAuction = await response.json();
+        setAuction(data);
       } catch (err) {
         console.error("Error fetching auction details:", err);
         setError(
@@ -219,22 +222,80 @@ export default function AuctionDetailView() {
     "translated_description"
   ) || "";
 
+  const editHref = pathname ? `${pathname}/edit` : `/wholesaler/auctions/${auction.auction_id}/edit`;
+  const listHref = pathname?.replace(/\/[^/]+$/, "") || "/wholesaler/auctions";
+
+  const handleDelete = async () => {
+    if (!confirm("هل أنت متأكد من حذف هذا المزاد؟")) return;
+    setIsDeleting(true);
+    setError(null);
+    try {
+      const authHeader = getAuthHeader();
+      const response = await fetch(
+        `https://api-testing.mothmerah.sa/api/v1/auctions/${auction.auction_id}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeader,
+          },
+        }
+      );
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(
+          (errData as { detail?: string })?.detail || "فشل في حذف المزاد"
+        );
+      }
+      router.push(listHref);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "حدث خطأ في حذف المزاد"
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <button
-          onClick={() => router.back()}
-          className="p-2 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-        >
-          <ChevronLeftIcon className="w-5 h-5" />
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
-            تفاصيل المزاد
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {auction.custom_auction_title || "بدون عنوان"}
-          </p>
+      {error && (
+        <div className="p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800">
+          {error}
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => router.back()}
+            className="p-2 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+          >
+            <ChevronLeftIcon className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
+              تفاصيل المزاد
+            </h1>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {auction.custom_auction_title || "بدون عنوان"}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link
+            href={editHref}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600"
+          >
+            تعديل
+          </Link>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-error-300 bg-error-50 px-4 py-2.5 text-sm font-medium text-error-700 transition hover:bg-error-100 dark:border-error-800 dark:bg-error-900/20 dark:text-error-400 dark:hover:bg-error-900/30 disabled:opacity-50"
+          >
+            {isDeleting ? "جاري الحذف..." : "حذف"}
+          </button>
         </div>
       </div>
 

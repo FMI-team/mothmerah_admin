@@ -476,11 +476,10 @@ export default function BaseUserAuctionsPage() {
                       <button
                         key={page}
                         onClick={() => setCurrentPage(page)}
-                        className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                          currentPage === page
-                            ? "bg-purple-500 text-white"
-                            : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                        }`}
+                        className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${currentPage === page
+                          ? "bg-purple-500 text-white"
+                          : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                          }`}
                       >
                         {page}
                       </button>

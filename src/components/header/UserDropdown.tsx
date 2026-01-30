@@ -71,11 +71,11 @@ export default function UserDropdown() {
     };
 
     fetchCurrentUser();
-    
+
     const type = getUserType();
     setUserType(type);
   }, []);
-  
+
   const getProfilePath = () => {
     if (userType === "BASE_USER" || userType === "base_user" || userType === "BASEUSER" || userType === "baseUser") {
       return "/base-user/profile";

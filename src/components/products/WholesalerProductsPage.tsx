@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
-import { MoreDotIcon, DownloadIcon, ArrowUpIcon, CalenderIcon, PlusIcon } from "@/icons";
+import { MoreDotIcon, DownloadIcon, ArrowUpIcon, PlusIcon } from "@/icons";
 import Badge from "../ui/badge/Badge";
 import {
   Table,
@@ -179,16 +179,8 @@ const mapApiProductToProduct = (api: ApiProduct): Product => {
 export default function WholesalerProductsPage() {
   const router = useRouter();
   const pathname = usePathname();
-  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [actionDropdownOpen, setActionDropdownOpen] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [relatedToFilter, setRelatedToFilter] = useState("الكل");
-  const [ownerFilter, setOwnerFilter] = useState("الكل");
-  const [categoryFilter, setCategoryFilter] = useState("الكل");
-  const [statusFilter, setStatusFilter] = useState("الكل");
-  const [startDateFilter, setStartDateFilter] = useState("18/02/2025");
-  const [endDateFilter, setEndDateFilter] = useState("12/02/2025");
   const [apiProducts, setApiProducts] = useState<ApiProduct[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -271,49 +263,11 @@ export default function WholesalerProductsPage() {
     fetchProducts();
   }, [fetchProducts]);
 
-  // Filter products based on search and filters
-  let filteredProducts = products;
-
-  if (searchQuery) {
-    filteredProducts = filteredProducts.filter((product) =>
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.category.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }
-
-  if (statusFilter !== "الكل") {
-    filteredProducts = filteredProducts.filter((product) => product.status === statusFilter);
-  }
-
-  if (categoryFilter !== "الكل") {
-    filteredProducts = filteredProducts.filter((product) => product.category === categoryFilter);
-  }
-
-  if (ownerFilter !== "الكل") {
-    filteredProducts = filteredProducts.filter((product) => product.owner === ownerFilter);
-  }
-
-  const totalItems = filteredProducts.length;
-  const paginatedProducts = filteredProducts.slice(
+  const totalItems = products.length;
+  const paginatedProducts = products.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
-
-  const toggleProductSelection = (productId: string) => {
-    setSelectedProducts((prev) =>
-      prev.includes(productId)
-        ? prev.filter((id) => id !== productId)
-        : [...prev, productId]
-    );
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedProducts.length === paginatedProducts.length) {
-      setSelectedProducts([]);
-    } else {
-      setSelectedProducts(paginatedProducts.map((product) => product.id));
-    }
-  };
 
   const getStatusBadgeColor = (
     status: Product["status"]
@@ -339,7 +293,7 @@ export default function WholesalerProductsPage() {
   const handleExportCSV = () => {
     const csvContent = [
       ["اسم المنتج", "الفئة", "المالك", "الكمية المتاحة", "نوع البيع", "الحالة", "تاريخ الاضافة"],
-      ...filteredProducts.map((product) => [
+      ...products.map((product) => [
         product.name,
         product.category,
         product.owner,
@@ -416,111 +370,6 @@ export default function WholesalerProductsPage() {
         </p>
       </div>
 
-      {/* Filters and Search */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 sm:p-6">
-        <div className="flex flex-col gap-4">
-          {/* Search */}
-          <div className="relative">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ابحث ..."
-              className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 pr-10 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-            />
-            <svg
-              className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-          </div>
-
-          {/* Filters */}
-          <div className="flex flex-wrap gap-3">
-            <select
-              value={relatedToFilter}
-              onChange={(e) => setRelatedToFilter(e.target.value)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
-            >
-              <option value="الكل">مرتبط ب: الكل</option>
-              <option value="مزادات">مزادات</option>
-              <option value="RFQ">RFQ</option>
-            </select>
-
-            <select
-              value={ownerFilter}
-              onChange={(e) => setOwnerFilter(e.target.value)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
-            >
-              <option value="الكل">المالك: الكل</option>
-              <option value="مزارع">مزارع</option>
-              <option value="تاجر">تاجر</option>
-              <option value="رخصة حرة">رخصة حرة</option>
-            </select>
-
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
-            >
-              <option value="الكل">الفئة: الكل</option>
-              <option value="خضروات">خضروات</option>
-              <option value="تمور">تمور</option>
-              <option value="فواكه">فواكه</option>
-              <option value="غذائي">غذائي</option>
-            </select>
-
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
-            >
-              <option value="الكل">الحالة: الكل</option>
-              <option value="مسودة">مسودة</option>
-              <option value="منشور">منشور</option>
-              <option value="مرفوض">مرفوض</option>
-              <option value="بانتظار الموافقة">بانتظار الموافقة</option>
-              <option value="مؤرشف">مؤرشف</option>
-              <option value="موقوف مؤقتا">موقوف مؤقتا</option>
-            </select>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                تاريخ اضافة المنتج:
-              </span>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={startDateFilter}
-                  onChange={(e) => setStartDateFilter(e.target.value)}
-                  placeholder="18/02/2025"
-                  className="w-32 rounded-lg border border-gray-200 bg-white px-4 py-2.5 pr-10 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-                />
-                <CalenderIcon className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-              </div>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={endDateFilter}
-                  onChange={(e) => setEndDateFilter(e.target.value)}
-                  placeholder="12/02/2025"
-                  className="w-32 rounded-lg border border-gray-200 bg-white px-4 py-2.5 pr-10 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-                />
-                <CalenderIcon className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {statisticsCards.map((card, index) => (
@@ -576,7 +425,7 @@ export default function WholesalerProductsPage() {
           <div className="flex items-center justify-center py-10 text-sm text-gray-500 dark:text-gray-400">
             جاري تحميل المنتجات...
           </div>
-        ) : filteredProducts.length === 0 ? (
+        ) : products.length === 0 ? (
           <div className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
             لا توجد منتجات متاحة حاليا
           </div>
@@ -590,15 +439,6 @@ export default function WholesalerProductsPage() {
                     className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
                     <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={
-                          paginatedProducts.length > 0 &&
-                          selectedProducts.length === paginatedProducts.length
-                        }
-                        onChange={toggleSelectAll}
-                        className="w-4 h-4 text-brand-500 border-gray-300 rounded focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800"
-                      />
                       صورة المنتج
                     </div>
                   </TableCell>
@@ -660,12 +500,6 @@ export default function WholesalerProductsPage() {
                   >
                     <TableCell className="py-3">
                       <div className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={selectedProducts.includes(product.id)}
-                          onChange={() => toggleProductSelection(product.id)}
-                          className="w-4 h-4 text-brand-500 border-gray-300 rounded focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800"
-                        />
                         <div className="h-10 w-10 overflow-hidden rounded-lg bg-gray-100">
                           {product.imageUrl ? (
                             <Image
@@ -771,7 +605,7 @@ export default function WholesalerProductsPage() {
         )}
 
         {/* Pagination */}
-        {!isLoading && filteredProducts.length > 0 && (
+        {!isLoading && products.length > 0 && (
           <div className="flex items-center justify-between gap-4 pt-6">
             <div className="text-sm text-gray-500 dark:text-gray-400">
               عرض {Math.min((currentPage - 1) * itemsPerPage + 1, totalItems)}-

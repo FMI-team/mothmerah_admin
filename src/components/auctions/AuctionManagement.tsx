@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { MoreDotIcon, PlusIcon, DownloadIcon, ArrowUpIcon, CalenderIcon } from "@/icons";
+import { useRouter, usePathname } from "next/navigation";
+import { MoreDotIcon, PlusIcon, DownloadIcon, ArrowUpIcon } from "@/icons";
 import Badge from "../ui/badge/Badge";
 import {
   Table,
@@ -13,239 +14,185 @@ import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import Button from "../ui/button/Button";
 import { getAuthHeader } from "@/lib/auth";
+import CreateAuctionForm from "./CreateAuctionForm";
 
-interface Auction {
-  id: string;
-  auctionNumber: string;
-  auctionType: "حضوري" | "عن بعد";
-  cropType: string;
-  numberOfOffers: number;
-  status: "قائم" | "منتهي" | "قادم";
-  productArrivalStatus: "مؤكد" | "غير مؤكد";
-  startDate: string;
-}
-
-interface AuctionStatusTranslation {
+interface Translation {
   language_code: string;
   translated_status_name?: string;
+  translated_type_name?: string;
+  translated_category_name?: string;
+  translated_product_name?: string;
   translated_description?: string | null;
 }
 
 interface AuctionStatus {
   status_name_key: string;
-  status_description_key: string;
+  status_description_key: string | null;
   auction_status_id: number;
-  translations: AuctionStatusTranslation[];
-}
-
-interface AuctionTypeTranslation {
-  language_code: string;
-  translated_type_name?: string;
-  translated_description?: string | null;
+  translations: Translation[];
 }
 
 interface AuctionType {
   type_name_key: string;
   description_key: string;
   auction_type_id: number;
-  translations: AuctionTypeTranslation[];
+  translations: Translation[];
 }
 
-const mockAuctions: Auction[] = [
-  {
-    id: "1",
-    auctionNumber: "#102",
-    auctionType: "حضوري",
-    cropType: "خضروات",
-    numberOfOffers: 2,
-    status: "قائم",
-    productArrivalStatus: "مؤكد",
-    startDate: "22/05/2025",
-  },
-  {
-    id: "2",
-    auctionNumber: "#103",
-    auctionType: "عن بعد",
-    cropType: "تمور",
-    numberOfOffers: 5,
-    status: "منتهي",
-    productArrivalStatus: "مؤكد",
-    startDate: "01/08/2023",
-  },
-  {
-    id: "3",
-    auctionNumber: "#104",
-    auctionType: "حضوري",
-    cropType: "غذائي",
-    numberOfOffers: 0,
-    status: "قادم",
-    productArrivalStatus: "غير مؤكد",
-    startDate: "05/09/2022",
-  },
-  {
-    id: "4",
-    auctionNumber: "#105",
-    auctionType: "عن بعد",
-    cropType: "فواكه",
-    numberOfOffers: 3,
-    status: "قائم",
-    productArrivalStatus: "مؤكد",
-    startDate: "22/05/2025",
-  },
-  {
-    id: "5",
-    auctionNumber: "#106",
-    auctionType: "حضوري",
-    cropType: "خضروات",
-    numberOfOffers: 7,
-    status: "منتهي",
-    productArrivalStatus: "مؤكد",
-    startDate: "01/08/2023",
-  },
-  {
-    id: "6",
-    auctionNumber: "#107",
-    auctionType: "عن بعد",
-    cropType: "تمور",
-    numberOfOffers: 4,
-    status: "منتهي",
-    productArrivalStatus: "مؤكد",
-    startDate: "05/09/2022",
-  },
-];
+interface Category {
+  category_name_key: string;
+  category_id: number;
+  translations: Translation[];
+}
 
-const statisticsCards = [
-  {
-    title: "اجمالي عدد المزادات",
-    value: "123,457",
-    change: "+5.3%",
-  },
-  {
-    title: "اجمالي عدد المزادات الحضورية",
-    value: "8,950",
-    change: "+1.3%",
-  },
-  {
-    title: "اجمالي عدد المزادات القائمة",
-    value: "2,084",
-    change: "+1.3%",
-  },
-  {
-    title: "اجمالي عدد المزادات عبر التطبيق",
-    value: "5,078",
-    change: "+1.3%",
-  },
-  {
-    title: "اجمالي عدد المزادات المنتهية",
-    value: "1,352",
-    change: "+1.3%",
-  },
-  {
-    title: "اجمالي عدد المزادات القادمة",
-    value: "13",
-    change: "+1.3%",
-  },
-];
+interface Product {
+  product_id: string;
+  category: Category;
+  translations: Array<{
+    language_code: string;
+    translated_product_name?: string;
+  }>;
+}
+
+interface ApiAuction {
+  seller_user_id: string;
+  product_id: string;
+  auction_type_id: number;
+  auction_status_id: number;
+  auction_title_key: string | null;
+  custom_auction_title: string | null;
+  auction_description_key: string | null;
+  custom_auction_description: string | null;
+  start_timestamp: string;
+  end_timestamp: string;
+  starting_price_per_unit: number;
+  minimum_bid_increment: number;
+  reserve_price_per_unit: number | null;
+  quantity_offered: number;
+  unit_of_measure_id_for_quantity: number;
+  is_private_auction: boolean;
+  pre_arrival_shipping_info: string | null;
+  cancellation_reason: string | null;
+  current_highest_bid_amount_per_unit: number | null;
+  current_highest_bidder_user_id: string | null;
+  total_bids_count: number;
+  auction_id: string;
+  created_at: string;
+  updated_at: string;
+  product: Product;
+  auction_type: AuctionType;
+  auction_status: AuctionStatus;
+}
 
 const getArabicTranslation = (
-  translations: AuctionStatusTranslation[],
-  field: "translated_status_name" | "translated_description"
+  translations: Translation[],
+  field: "translated_status_name" | "translated_type_name" | "translated_category_name" | "translated_product_name"
 ): string => {
   const arabicTranslation = translations.find((t) => t.language_code === "ar");
   return arabicTranslation?.[field] || "";
 };
 
-const getAuctionTypeArabicTranslation = (
-  translations: AuctionTypeTranslation[],
-  field: "translated_type_name" | "translated_description"
-): string => {
-  const arabicTranslation = translations.find((t) => t.language_code === "ar");
-  return arabicTranslation?.[field] || "";
+const formatDate = (dateString: string): string => {
+  try {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat("ar-SA", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(date);
+  } catch {
+    return dateString;
+  }
 };
 
 export default function AuctionManagement() {
+  const router = useRouter();
+  const pathname = usePathname();
   const [selectedAuctions, setSelectedAuctions] = useState<string[]>([]);
   const [actionDropdownOpen, setActionDropdownOpen] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [auctionTypeFilter, setAuctionTypeFilter] = useState("الكل");
-  const [cropTypeFilter, setCropTypeFilter] = useState("الكل");
-  const [statusFilter, setStatusFilter] = useState("الكل");
-  const [startDateFilter, setStartDateFilter] = useState("18/02/2025");
-  const [endDateFilter, setEndDateFilter] = useState("12/02/2025");
-  const [auctionStatuses, setAuctionStatuses] = useState<AuctionStatus[]>([]);
-  const [isLoadingStatuses, setIsLoadingStatuses] = useState(false);
-  const [auctionTypes, setAuctionTypes] = useState<AuctionType[]>([]);
-  const [isLoadingTypes, setIsLoadingTypes] = useState(false);
+  const [auctions, setAuctions] = useState<ApiAuction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deletingAuctionId, setDeletingAuctionId] = useState<string | null>(null);
+  const [isCreateAuctionModalOpen, setIsCreateAuctionModalOpen] = useState(false);
 
   const itemsPerPage = 6;
-  const totalItems = 100;
 
-  const fetchAuctionStatuses = useCallback(async () => {
-    setIsLoadingStatuses(true);
+  const fetchAuctions = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch(
-        "https://api-testing.mothmerah.sa/admin/admin/auctions/statuses",
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeader,
-          },
-        }
-      );
+      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/auctions/me/created", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeader,
+        },
+      });
 
       if (!response.ok) {
-        throw new Error("فشل في جلب حالات المزادات");
+        throw new Error("فشل في جلب المزادات");
       }
 
-      const data: AuctionStatus[] = await response.json();
-      setAuctionStatuses(data);
+      const data: ApiAuction[] = await response.json();
+      setAuctions(data || []);
     } catch (err) {
-      console.error("Error fetching auction statuses:", err);
-    } finally {
-      setIsLoadingStatuses(false);
-    }
-  }, []);
-
-  const fetchAuctionTypes = useCallback(async () => {
-    setIsLoadingTypes(true);
-    try {
-      const authHeader = getAuthHeader();
-      const response = await fetch(
-        "https://api-testing.mothmerah.sa/admin/admin/auctions/types",
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeader,
-          },
-        }
+      console.error("Error fetching auctions:", err);
+      setError(
+        err instanceof Error ? err.message : "حدث خطأ في جلب بيانات المزادات"
       );
-
-      if (!response.ok) {
-        throw new Error("فشل في جلب أنواع المزادات");
-      }
-
-      const data: AuctionType[] = await response.json();
-      setAuctionTypes(data);
-    } catch (err) {
-      console.error("Error fetching auction types:", err);
     } finally {
-      setIsLoadingTypes(false);
+      setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchAuctionStatuses();
-    fetchAuctionTypes();
-  }, [fetchAuctionStatuses, fetchAuctionTypes]);
+    fetchAuctions();
+  }, [fetchAuctions]);
 
-  const paginatedAuctions = mockAuctions.slice(
+  const handleDeleteAuction = async (auctionId: string) => {
+    if (!confirm("هل أنت متأكد من حذف هذا المزاد؟")) return;
+    setDeletingAuctionId(auctionId);
+    setActionDropdownOpen(null);
+    setError(null);
+    try {
+      const authHeader = getAuthHeader();
+      const response = await fetch(
+        `https://api-testing.mothmerah.sa/api/v1/auctions/${auctionId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeader,
+          },
+        }
+      );
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(
+          (errData as { detail?: string })?.detail || "فشل في حذف المزاد"
+        );
+      }
+      await fetchAuctions();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "حدث خطأ في حذف المزاد"
+      );
+    } finally {
+      setDeletingAuctionId(null);
+    }
+  };
+
+  const paginatedAuctions = auctions.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+
+  const totalItems = auctions.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
 
   const toggleAuctionSelection = (auctionId: string) => {
     setSelectedAuctions((prev) =>
@@ -259,49 +206,77 @@ export default function AuctionManagement() {
     if (selectedAuctions.length === paginatedAuctions.length) {
       setSelectedAuctions([]);
     } else {
-      setSelectedAuctions(paginatedAuctions.map((auction) => auction.id));
+      setSelectedAuctions(paginatedAuctions.map((auction) => auction.auction_id));
     }
   };
 
   const getStatusBadgeColor = (
-    status: Auction["status"]
+    statusName: string
   ): "success" | "warning" | "error" | "info" | "primary" => {
-    switch (status) {
-      case "قائم":
-        return "success";
-      case "منتهي":
-        return "info";
-      case "قادم":
-        return "warning";
-      default:
-        return "primary";
+    const status = statusName.toLowerCase();
+    if (status === "active" || status === "نشط" || status === "scheduled" || status === "مجدول") {
+      return "success";
     }
+    if (status.includes("pending") || status.includes("قيد")) {
+      return "warning";
+    }
+    if (status === "ended" || status === "منتهي" || status === "closed") {
+      return "info";
+    }
+    return "warning";
   };
 
-  const getArrivalStatusBadgeColor = (
-    status: Auction["productArrivalStatus"]
-  ): "success" | "warning" | "error" | "info" | "primary" => {
-    switch (status) {
-      case "مؤكد":
-        return "success";
-      case "غير مؤكد":
-        return "warning";
-      default:
-        return "primary";
-    }
-  };
+  // Calculate statistics from actual data
+  const statisticsCards = [
+    {
+      title: "اجمالي عدد المزادات",
+      value: auctions.length.toString(),
+      change: "",
+    },
+    {
+      title: "اجمالي عدد المزادات القائمة",
+      value: auctions.filter((a) => a.auction_status.status_name_key === "ACTIVE").length.toString(),
+      change: "",
+    },
+    {
+      title: "اجمالي عدد المزادات المجدولة",
+      value: auctions.filter((a) => a.auction_status.status_name_key === "SCHEDULED").length.toString(),
+      change: "",
+    },
+    {
+      title: "اجمالي عدد المزادات المنتهية",
+      value: auctions.filter((a) => a.auction_status.status_name_key === "ENDED" || a.auction_status.status_name_key === "CLOSED").length.toString(),
+      change: "",
+    },
+    {
+      title: "إجمالي المزايدات",
+      value: auctions.reduce((sum, a) => sum + a.total_bids_count, 0).toString(),
+      change: "",
+    },
+    {
+      title: "متوسط السعر الابتدائي",
+      value: auctions.length > 0
+        ? (auctions.reduce((sum, a) => sum + a.starting_price_per_unit, 0) / auctions.length).toFixed(2)
+        : "0",
+      change: "",
+    },
+  ];
 
   const handleExportCSV = () => {
     const csvContent = [
-      ["رقم المزاد", "نوع المزاد", "نوع المحصول", "عدد العروض", "الحالة", "حالة وصول المنتج", "تاريخ بداية المزاد"],
-      ...mockAuctions.map((auction) => [
-        auction.auctionNumber,
-        auction.auctionType,
-        auction.cropType,
-        auction.numberOfOffers.toString(),
-        auction.status,
-        auction.productArrivalStatus,
-        auction.startDate,
+      ["عنوان المزاد", "المنتج", "الفئة", "نوع المزاد", "الحالة", "السعر الابتدائي", "أعلى مزايدة", "عدد المزايدات", "الكمية", "تاريخ البدء", "تاريخ الانتهاء"],
+      ...auctions.map((auction) => [
+        auction.custom_auction_title || "بدون عنوان",
+        getArabicTranslation(auction.product.translations, "translated_product_name") || auction.product.product_id,
+        getArabicTranslation(auction.product.category.translations, "translated_category_name") || auction.product.category.category_name_key,
+        getArabicTranslation(auction.auction_type.translations, "translated_type_name") || auction.auction_type.type_name_key,
+        getArabicTranslation(auction.auction_status.translations, "translated_status_name") || auction.auction_status.status_name_key,
+        auction.starting_price_per_unit.toString(),
+        (auction.current_highest_bid_amount_per_unit || auction.starting_price_per_unit).toString(),
+        auction.total_bids_count.toString(),
+        auction.quantity_offered.toString(),
+        formatDate(auction.start_timestamp),
+        formatDate(auction.end_timestamp),
       ]),
     ]
       .map((row) => row.join(","))
@@ -330,111 +305,11 @@ export default function AuctionManagement() {
         </p>
       </div>
 
-      {/* Filters and Search */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 sm:p-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          {/* Search */}
-          <div className="relative flex-1 max-w-md">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ابحث ..."
-              className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 pr-10 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-            />
-            <svg
-              className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-          </div>
-
-          {/* Filters */}
-          <div className="flex flex-wrap gap-3">
-            <select
-              value={auctionTypeFilter}
-              onChange={(e) => setAuctionTypeFilter(e.target.value)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
-              disabled={isLoadingTypes}
-            >
-              <option value="الكل">نوع المزاد: الكل</option>
-              {auctionTypes.map((type) => {
-                const typeName = getAuctionTypeArabicTranslation(
-                  type.translations,
-                  "translated_type_name"
-                ) || type.type_name_key;
-                return (
-                  <option key={type.auction_type_id} value={type.type_name_key}>
-                    {typeName}
-                  </option>
-                );
-              })}
-            </select>
-
-            <select
-              value={cropTypeFilter}
-              onChange={(e) => setCropTypeFilter(e.target.value)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
-            >
-              <option value="الكل">نوع المحصول: الكل</option>
-              <option value="خضروات">خضروات</option>
-              <option value="تمور">تمور</option>
-              <option value="فواكه">فواكه</option>
-              <option value="غذائي">غذائي</option>
-            </select>
-
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
-              disabled={isLoadingStatuses}
-            >
-              <option value="الكل">الحالة: الكل</option>
-              {auctionStatuses.map((status) => {
-                const statusName = getArabicTranslation(
-                  status.translations,
-                  "translated_status_name"
-                ) || status.status_name_key;
-                return (
-                  <option key={status.auction_status_id} value={status.status_name_key}>
-                    {statusName}
-                  </option>
-                );
-              })}
-            </select>
-
-            <div className="relative">
-              <input
-                type="text"
-                value={startDateFilter}
-                onChange={(e) => setStartDateFilter(e.target.value)}
-                placeholder="تاريخ بداية المزاد"
-                className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 pr-10 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-              />
-              <CalenderIcon className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-            </div>
-
-            <div className="relative">
-              <input
-                type="text"
-                value={endDateFilter}
-                onChange={(e) => setEndDateFilter(e.target.value)}
-                placeholder="تاريخ نهاية المزاد"
-                className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 pr-10 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-              />
-              <CalenderIcon className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-            </div>
-          </div>
+      {error && (
+        <div className="p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800">
+          {error}
         </div>
-      </div>
+      )}
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -453,10 +328,12 @@ export default function AuctionManagement() {
                 </p>
               </div>
             </div>
-            <div className="mt-4 flex items-center gap-1 text-sm text-success-600 dark:text-success-500">
-              <ArrowUpIcon className="h-4 w-4" />
-              <span>{card.change}</span>
-            </div>
+            {card.change && (
+              <div className="mt-4 flex items-center gap-1 text-sm text-success-600 dark:text-success-500">
+                <ArrowUpIcon className="h-4 w-4" />
+                <span>{card.change}</span>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -464,7 +341,11 @@ export default function AuctionManagement() {
       {/* Table */}
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/3 sm:px-6">
         <div className="mb-4 flex items-center justify-between">
-          <Button size="sm" className="bg-purple-500 hover:bg-purple-600">
+          <Button
+            size="sm"
+            className="bg-purple-500 hover:bg-purple-600"
+            onClick={() => setIsCreateAuctionModalOpen(true)}
+          >
             <PlusIcon className="w-4 h-4 ml-2" />
             انشاء مزاد
           </Button>
@@ -495,8 +376,20 @@ export default function AuctionManagement() {
                       onChange={toggleSelectAll}
                       className="w-4 h-4 text-brand-500 border-gray-300 rounded focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800"
                     />
-                    رقم المزاد
+                    عنوان المزاد
                   </div>
+                </TableCell>
+                <TableCell
+                  isHeader
+                  className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                >
+                  المنتج
+                </TableCell>
+                <TableCell
+                  isHeader
+                  className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                >
+                  الفئة
                 </TableCell>
                 <TableCell
                   isHeader
@@ -508,13 +401,7 @@ export default function AuctionManagement() {
                   isHeader
                   className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                 >
-                  نوع المحصول
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                >
-                  عدد العروض
+                  عدد المزايدات
                 </TableCell>
                 <TableCell
                   isHeader
@@ -526,13 +413,25 @@ export default function AuctionManagement() {
                   isHeader
                   className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                 >
-                  حالة وصول المنتج
+                  السعر الابتدائي
                 </TableCell>
                 <TableCell
                   isHeader
                   className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                 >
-                  تاريخ بداية المزاد
+                  أعلى مزايدة
+                </TableCell>
+                <TableCell
+                  isHeader
+                  className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                >
+                  تاريخ البدء
+                </TableCell>
+                <TableCell
+                  isHeader
+                  className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                >
+                  تاريخ الانتهاء
                 </TableCell>
                 <TableCell
                   isHeader
@@ -543,135 +442,187 @@ export default function AuctionManagement() {
               </TableRow>
             </TableHeader>
             <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {paginatedAuctions.map((auction) => (
-                <TableRow
-                  key={auction.id}
-                  className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                >
-                  <TableCell className="py-3">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedAuctions.includes(auction.id)}
-                        onChange={() => toggleAuctionSelection(auction.id)}
-                        className="w-4 h-4 text-brand-500 border-gray-300 rounded focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800"
-                      />
-                      <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
-                        {auction.auctionNumber}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                    {auction.auctionType}
-                  </TableCell>
-                  <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                    {auction.cropType}
-                  </TableCell>
-                  <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                    {auction.numberOfOffers}
-                  </TableCell>
-                  <TableCell className="py-3">
-                    <Badge size="sm" color={getStatusBadgeColor(auction.status)}>
-                      {auction.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="py-3">
-                    <Badge
-                      size="sm"
-                      color={getArrivalStatusBadgeColor(auction.productArrivalStatus)}
-                    >
-                      {auction.productArrivalStatus}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                    {auction.startDate}
-                  </TableCell>
-                  <TableCell className="py-3">
-                    <div className="relative">
-                      <button
-                        onClick={() =>
-                          setActionDropdownOpen(
-                            actionDropdownOpen === auction.id ? null : auction.id
-                          )
-                        }
-                        className="p-1.5 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-                      >
-                        <MoreDotIcon className="w-5 h-5" />
-                      </button>
-                      <Dropdown
-                        isOpen={actionDropdownOpen === auction.id}
-                        onClose={() => setActionDropdownOpen(null)}
-                        className="absolute left-0 mt-2 w-40 p-2 z-50"
-                      >
-                        <DropdownItem
-                          onItemClick={() => {
-                            setActionDropdownOpen(null);
-                          }}
-                          className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-                        >
-                          عرض التفاصيل
-                        </DropdownItem>
-                        <DropdownItem
-                          onItemClick={() => {
-                            setActionDropdownOpen(null);
-                          }}
-                          className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-                        >
-                          تعديل
-                        </DropdownItem>
-                        <DropdownItem
-                          onItemClick={() => {
-                            setActionDropdownOpen(null);
-                          }}
-                          className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-red-300"
-                        >
-                          حذف
-                        </DropdownItem>
-                      </Dropdown>
-                    </div>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell className="py-12 text-center text-gray-500 dark:text-gray-400">
+                    جاري التحميل...
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : paginatedAuctions.length === 0 ? (
+                <TableRow>
+                  <TableCell className="py-12 text-center text-gray-500 dark:text-gray-400">
+                    لا توجد مزادات متاحة
+                  </TableCell>
+                </TableRow>
+              ) : (
+                paginatedAuctions.map((auction) => {
+                  const statusName = getArabicTranslation(
+                    auction.auction_status.translations,
+                    "translated_status_name"
+                  ) || auction.auction_status.status_name_key;
+                  const typeName = getArabicTranslation(
+                    auction.auction_type.translations,
+                    "translated_type_name"
+                  ) || auction.auction_type.type_name_key;
+                  const productName = getArabicTranslation(
+                    auction.product.translations,
+                    "translated_product_name"
+                  ) || auction.product.product_id;
+                  const categoryName = getArabicTranslation(
+                    auction.product.category.translations,
+                    "translated_category_name"
+                  ) || auction.product.category.category_name_key;
+
+                  return (
+                    <TableRow
+                      key={auction.auction_id}
+                      className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                    >
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedAuctions.includes(auction.auction_id)}
+                            onChange={() => toggleAuctionSelection(auction.auction_id)}
+                            className="w-4 h-4 text-brand-500 border-gray-300 rounded focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800"
+                          />
+                          <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
+                            {auction.custom_auction_title || "بدون عنوان"}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
+                        {productName}
+                      </TableCell>
+                      <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
+                        {categoryName}
+                      </TableCell>
+                      <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
+                        {typeName}
+                      </TableCell>
+                      <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
+                        {auction.total_bids_count}
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <Badge size="sm" color={getStatusBadgeColor(statusName)}>
+                          {statusName}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
+                        {auction.starting_price_per_unit.toFixed(2)} ر.س
+                      </TableCell>
+                      <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
+                        {(auction.current_highest_bid_amount_per_unit || auction.starting_price_per_unit).toFixed(2)} ر.س
+                      </TableCell>
+                      <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                        {formatDate(auction.start_timestamp)}
+                      </TableCell>
+                      <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                        {formatDate(auction.end_timestamp)}
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <div className="relative">
+                          <button
+                            onClick={() =>
+                              setActionDropdownOpen(
+                                actionDropdownOpen === auction.auction_id ? null : auction.auction_id
+                              )
+                            }
+                            className="p-1.5 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                          >
+                            <MoreDotIcon className="w-5 h-5" />
+                          </button>
+                          <Dropdown
+                            isOpen={actionDropdownOpen === auction.auction_id}
+                            onClose={() => setActionDropdownOpen(null)}
+                            className="absolute left-0 mt-2 w-40 p-2 z-50"
+                          >
+                            <DropdownItem
+                              onItemClick={() => {
+                                setActionDropdownOpen(null);
+                                router.push(`${pathname}/${auction.auction_id}`);
+                              }}
+                              className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                            >
+                              عرض التفاصيل
+                            </DropdownItem>
+                            <DropdownItem
+                              onItemClick={() => {
+                                setActionDropdownOpen(null);
+                                router.push(`${pathname}/${auction.auction_id}/edit`);
+                              }}
+                              className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                            >
+                              تعديل
+                            </DropdownItem>
+                            <DropdownItem
+                              onItemClick={() => {
+                                handleDeleteAuction(auction.auction_id);
+                              }}
+                              className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-red-300"
+                            >
+                              {deletingAuctionId === auction.auction_id
+                                ? "جاري الحذف..."
+                                : "حذف"}
+                            </DropdownItem>
+                          </Dropdown>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
             </TableBody>
           </Table>
         </div>
 
         {/* Pagination */}
-        <div className="flex items-center justify-between gap-4 pt-6">
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            عرض {Math.min((currentPage - 1) * itemsPerPage + 1, totalItems)}-
-            {Math.min(currentPage * itemsPerPage, totalItems)} من {totalItems}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-            >
-              السابق
-            </button>
-            {[1, 2].map((page) => (
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between gap-4 pt-6">
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              عرض {Math.min((currentPage - 1) * itemsPerPage + 1, totalItems)}-
+              {Math.min(currentPage * itemsPerPage, totalItems)} من {totalItems}
+            </div>
+            <div className="flex items-center gap-2">
               <button
-                key={page}
-                onClick={() => setCurrentPage(page)}
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${currentPage === page
-                    ? "bg-purple-500 text-white"
-                    : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                  }`}
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
               >
-                {page}
+                السابق
               </button>
-            ))}
-            <button
-              onClick={() => setCurrentPage((prev) => prev + 1)}
-              disabled={currentPage >= Math.ceil(totalItems / itemsPerPage)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-            >
-              التالي
-            </button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const page = i + 1;
+                return (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${currentPage === page
+                      ? "bg-purple-500 text-white"
+                      : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                      }`}
+                  >
+                    {page}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={currentPage >= totalPages}
+                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                التالي
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
+
+      <CreateAuctionForm
+        isOpen={isCreateAuctionModalOpen}
+        onClose={() => setIsCreateAuctionModalOpen(false)}
+        onSuccess={fetchAuctions}
+      />
     </div>
   );
 }
