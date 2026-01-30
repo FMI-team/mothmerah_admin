@@ -99,8 +99,8 @@ const wholesalerNavItems: NavItem[] = [
   },
   {
     icon: <BoxCubeIcon />,
-    name: "ادارة المخازن",
-    path: "/wholesaler/warehouses",
+    name: "ادارة المخزون",
+    path: "/wholesaler/inventory",
   },
   {
     icon: <DocsIcon />,
