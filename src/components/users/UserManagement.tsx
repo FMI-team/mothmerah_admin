@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 "use client";
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Table,
@@ -98,17 +98,55 @@ interface User {
   preferred_language: PreferredLanguage;
 }
 
-interface UserVerificationStatusOption {
-  user_verification_status_id: number;
+interface AccountStatusOption {
+  account_status_id: number;
   status_name_key: string;
+  is_terminal: boolean;
 }
 
-const USER_VERIFICATION_STATUSES: UserVerificationStatusOption[] = [
-  { user_verification_status_id: 1, status_name_key: "NOT_VERIFIED" },
-  { user_verification_status_id: 2, status_name_key: "PENDING_REVIEW" },
-  { user_verification_status_id: 3, status_name_key: "VERIFIED" },
-  { user_verification_status_id: 4, status_name_key: "REJECTED" },
-  { user_verification_status_id: 5, status_name_key: "ACTIVE" },
+const ACCOUNT_STATUSES: AccountStatusOption[] = [
+  { account_status_id: 1, status_name_key: "PENDING_ACTIVATION", is_terminal: false },
+  { account_status_id: 2, status_name_key: "ACTIVE", is_terminal: false },
+  { account_status_id: 3, status_name_key: "SUSPENDED", is_terminal: false },
+  { account_status_id: 4, status_name_key: "DELETED", is_terminal: true },
+];
+
+const ACCOUNT_STATUS_LABELS: Record<string, string> = {
+  PENDING_ACTIVATION: "قيد التفعيل",
+  ACTIVE: "نشط",
+  SUSPENDED: "معلق",
+  DELETED: "محذوف",
+};
+
+interface UserTypeOption {
+  user_type_id: number;
+  user_type_name_key: string;
+}
+
+const USER_TYPES: UserTypeOption[] = [
+  { user_type_id: 1, user_type_name_key: "BASE_USER" },
+  { user_type_id: 2, user_type_name_key: "WHOLESALER" },
+  { user_type_id: 3, user_type_name_key: "ADMIN" },
+];
+
+const USER_TYPE_LABELS: Record<string, string> = {
+  BASE_USER: "مستخدم أساسي",
+  WHOLESALER: "تاجر جملة",
+  ADMIN: "مسؤول",
+};
+
+interface LanguageOption {
+  code: string;
+  name: string;
+}
+
+const LANGUAGES: LanguageOption[] = [
+  { code: "ar", name: "العربية" },
+  { code: "en", name: "English" },
+  { code: "fr", name: "Français" },
+  { code: "ur", name: "اردو" },
+  { code: "hi", name: "हिन्दी" },
+  { code: "bn", name: "বাংলা" },
 ];
 
 const getArabicTranslation = (
@@ -119,13 +157,12 @@ const getArabicTranslation = (
   return arabicTranslation?.[field] || "";
 };
 
-const getVerificationStatusLabel = (
-  statusNameKey: string,
-  t: (key: string) => string
+const getAccountStatusLabel = (
+  status: { status_name_key: string; translations?: { language_code: string; translated_status_name?: string }[] }
 ): string => {
-  const key = `users.management.verificationStatuses.${statusNameKey}`;
-  const translated = t(key);
-  return translated === key ? statusNameKey : translated;
+  const ar = status.translations?.find((x) => x.language_code === "ar");
+  if (ar?.translated_status_name) return ar.translated_status_name;
+  return ACCOUNT_STATUS_LABELS[status.status_name_key] || status.status_name_key;
 };
 
 const formatDate = (dateString: string | null, t: (key: string) => string): string => {
@@ -160,6 +197,20 @@ export default function UserManagement() {
   const [selectedStatusId, setSelectedStatusId] = useState<number | null>(null);
   const [reasonForChange, setReasonForChange] = useState("");
   const [isChangingStatus, setIsChangingStatus] = useState(false);
+
+  // Create user modal state
+  const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [createUserError, setCreateUserError] = useState<string | null>(null);
+  const [newUserForm, setNewUserForm] = useState({
+    phone_number: "",
+    first_name: "",
+    last_name: "",
+    password: "",
+    user_type_id: 1,
+    account_status_id: 1,
+    preferred_language_code: "ar",
+  });
 
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
@@ -221,10 +272,13 @@ export default function UserManagement() {
     if (status === "نشط" || status === "active") {
       return "success";
     }
-    if (status === "قيد الانتظار" || status.includes("pending")) {
+    if (status === "قيد التفعيل" || status.includes("pending")) {
       return "warning";
     }
     if (status === "معلق" || status.includes("suspended")) {
+      return "error";
+    }
+    if (status === "محذوف" || status === "deleted") {
       return "error";
     }
     return "warning";
@@ -274,7 +328,7 @@ export default function UserManagement() {
 
   const handleOpenStatusModal = (user: User) => {
     setSelectedUserForStatusChange(user);
-    setSelectedStatusId(user.user_verification_status_id);
+    setSelectedStatusId(user.account_status.account_status_id);
     setReasonForChange("");
     setIsStatusModalOpen(true);
   };
@@ -284,6 +338,72 @@ export default function UserManagement() {
     setSelectedUserForStatusChange(null);
     setSelectedStatusId(null);
     setReasonForChange("");
+  };
+
+  const handleOpenCreateUserModal = () => {
+    setNewUserForm({
+      phone_number: "",
+      first_name: "",
+      last_name: "",
+      password: "",
+      user_type_id: 1,
+      account_status_id: 1,
+      preferred_language_code: "ar",
+    });
+    setCreateUserError(null);
+    setIsCreateUserModalOpen(true);
+  };
+
+  const handleCloseCreateUserModal = () => {
+    setIsCreateUserModalOpen(false);
+    setCreateUserError(null);
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newUserForm.phone_number || !newUserForm.first_name || !newUserForm.last_name || !newUserForm.password) {
+      setCreateUserError("يرجى ملء جميع الحقول المطلوبة");
+      return;
+    }
+
+    setIsCreatingUser(true);
+    setCreateUserError(null);
+
+    try {
+      const authHeader = getAuthHeader();
+      const response = await fetch("https://api-testing.mothmerah.sa/admin/users/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeader,
+        },
+        body: JSON.stringify(newUserForm),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (errorData.detail && Array.isArray(errorData.detail)) {
+          const errorMessages = errorData.detail
+            .map((err: { msg: string }) => err.msg)
+            .join(", ");
+          throw new Error(errorMessages || "فشل في إنشاء المستخدم");
+        }
+        throw new Error(
+          errorData.message || errorData.detail || "فشل في إنشاء المستخدم"
+        );
+      }
+
+      handleCloseCreateUserModal();
+      await fetchUsers();
+    } catch (err) {
+      console.error("Error creating user:", err);
+      setCreateUserError(
+        err instanceof Error ? err.message : "حدث خطأ في إنشاء المستخدم"
+      );
+    } finally {
+      setIsCreatingUser(false);
+    }
   };
 
   const handleChangeUserStatus = async () => {
@@ -329,7 +449,10 @@ export default function UserManagement() {
         );
       }
 
-      await fetchUsers();
+      const updatedUser: User = await response.json();
+      setUsers((prev) =>
+        prev.map((u) => (u.user_id === updatedUser.user_id ? updatedUser : u))
+      );
       handleCloseStatusModal();
     } catch (err) {
       console.error("Error changing user status:", err);
@@ -354,7 +477,10 @@ export default function UserManagement() {
         </p>
       </div>
 
-      <button className="hidden items-center gap-2 rounded-lg bg-purple-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs hover:bg-purple-600 lg:inline-flex">
+      <button
+        onClick={handleOpenCreateUserModal}
+        className="inline-flex items-center gap-2 rounded-lg bg-purple-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs hover:bg-purple-600"
+      >
         <PlusIcon className="w-4 h-4" />
         {t("users.management.addNewUser")}
       </button>
@@ -434,10 +560,7 @@ export default function UserManagement() {
                         user.default_role.translations,
                         "translated_role_name"
                       );
-                      const statusName = getArabicTranslation(
-                        user.account_status.translations,
-                        "translated_status_name"
-                      );
+                      const statusName = getAccountStatusLabel(user.account_status);
 
                       return (
                         <TableRow key={user.user_id}>
@@ -472,7 +595,7 @@ export default function UserManagement() {
                               size="sm"
                               color={getStatusBadgeColor(statusName)}
                             >
-                              {statusName || user.account_status.status_name_key}
+                              {statusName}
                             </Badge>
                           </TableCell>
                           <TableCell className="py-3">
@@ -562,10 +685,7 @@ export default function UserManagement() {
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   {t("users.management.statusModal.currentStatus")}{" "}
                   <span className="font-medium text-gray-800 dark:text-white/90">
-                    {getArabicTranslation(
-                      selectedUserForStatusChange.account_status.translations,
-                      "translated_status_name"
-                    ) || selectedUserForStatusChange.account_status.status_name_key}
+                    {getAccountStatusLabel(selectedUserForStatusChange.account_status)}
                   </span>
                 </p>
               </div>
@@ -583,35 +703,14 @@ export default function UserManagement() {
                   className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
                 >
                   <option value="">{t("users.management.statusModal.selectStatus")}</option>
-                  {(() => {
-                    const currentId = selectedUserForStatusChange.user_verification_status_id;
-                    const inList = USER_VERIFICATION_STATUSES.some(
-                      (s) => s.user_verification_status_id === currentId
-                    );
-                    return (
-                      <>
-                        {!inList && (
-                          <option
-                            key={`current-${currentId}`}
-                            value={String(currentId)}
-                          >
-                            {getVerificationStatusLabel(
-                              selectedUserForStatusChange.user_verification_status.status_name_key,
-                              t
-                            )}
-                          </option>
-                        )}
-                        {USER_VERIFICATION_STATUSES.map((status) => (
-                          <option
-                            key={status.user_verification_status_id}
-                            value={String(status.user_verification_status_id)}
-                          >
-                            {getVerificationStatusLabel(status.status_name_key, t)}
-                          </option>
-                        ))}
-                      </>
-                    );
-                  })()}
+                  {ACCOUNT_STATUSES.map((status) => (
+                    <option
+                      key={status.account_status_id}
+                      value={String(status.account_status_id)}
+                    >
+                      {ACCOUNT_STATUS_LABELS[status.status_name_key] || status.status_name_key}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -652,6 +751,172 @@ export default function UserManagement() {
             </div>
           )}
         </div>
+      </Modal>
+
+      {/* Create User Modal */}
+      <Modal
+        isOpen={isCreateUserModalOpen}
+        onClose={handleCloseCreateUserModal}
+        className="max-w-[600px] p-5 lg:p-10"
+      >
+        <form onSubmit={handleCreateUser} className="space-y-6">
+          <h4 className="font-semibold text-gray-800 text-title-sm dark:text-white/90">
+            إضافة مستخدم جديد
+          </h4>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <Label>
+                الاسم الأول <span className="text-error-500">*</span>
+              </Label>
+              <input
+                type="text"
+                value={newUserForm.first_name}
+                onChange={(e) =>
+                  setNewUserForm((prev) => ({ ...prev, first_name: e.target.value }))
+                }
+                placeholder="أدخل الاسم الأول"
+                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder-white/30 dark:focus:border-brand-800"
+              />
+            </div>
+
+            <div>
+              <Label>
+                الاسم الأخير <span className="text-error-500">*</span>
+              </Label>
+              <input
+                type="text"
+                value={newUserForm.last_name}
+                onChange={(e) =>
+                  setNewUserForm((prev) => ({ ...prev, last_name: e.target.value }))
+                }
+                placeholder="أدخل الاسم الأخير"
+                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder-white/30 dark:focus:border-brand-800"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <Label>
+                رقم الهاتف <span className="text-error-500">*</span>
+              </Label>
+              <input
+                type="tel"
+                value={newUserForm.phone_number}
+                onChange={(e) =>
+                  setNewUserForm((prev) => ({ ...prev, phone_number: e.target.value }))
+                }
+                placeholder="+966538509289"
+                dir="ltr"
+                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder-white/30 dark:focus:border-brand-800"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <Label>
+                كلمة المرور <span className="text-error-500">*</span>
+              </Label>
+              <input
+                type="password"
+                value={newUserForm.password}
+                onChange={(e) =>
+                  setNewUserForm((prev) => ({ ...prev, password: e.target.value }))
+                }
+                placeholder="أدخل كلمة المرور"
+                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder-white/30 dark:focus:border-brand-800"
+              />
+            </div>
+
+            <div>
+              <Label>
+                نوع المستخدم <span className="text-error-500">*</span>
+              </Label>
+              <select
+                value={newUserForm.user_type_id}
+                onChange={(e) =>
+                  setNewUserForm((prev) => ({
+                    ...prev,
+                    user_type_id: parseInt(e.target.value, 10),
+                  }))
+                }
+                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
+              >
+                {USER_TYPES.map((type) => (
+                  <option key={type.user_type_id} value={type.user_type_id}>
+                    {USER_TYPE_LABELS[type.user_type_name_key] || type.user_type_name_key}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <Label>
+                حالة الحساب <span className="text-error-500">*</span>
+              </Label>
+              <select
+                value={newUserForm.account_status_id}
+                onChange={(e) =>
+                  setNewUserForm((prev) => ({
+                    ...prev,
+                    account_status_id: parseInt(e.target.value, 10),
+                  }))
+                }
+                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
+              >
+                {ACCOUNT_STATUSES.map((status) => (
+                  <option key={status.account_status_id} value={status.account_status_id}>
+                    {ACCOUNT_STATUS_LABELS[status.status_name_key] || status.status_name_key}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="sm:col-span-2">
+              <Label>
+                اللغة المفضلة <span className="text-error-500">*</span>
+              </Label>
+              <select
+                value={newUserForm.preferred_language_code}
+                onChange={(e) =>
+                  setNewUserForm((prev) => ({
+                    ...prev,
+                    preferred_language_code: e.target.value,
+                  }))
+                }
+                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
+              >
+                {LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {createUserError && (
+            <div className="p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800">
+              {createUserError}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={handleCloseCreateUserModal}
+              disabled={isCreatingUser}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-3 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition hover:bg-gray-50 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/3 dark:hover:text-gray-300"
+            >
+              إلغاء
+            </button>
+            <button
+              type="submit"
+              disabled={isCreatingUser}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-3 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-brand-300"
+            >
+              {isCreatingUser ? "جاري الإنشاء..." : "إنشاء المستخدم"}
+            </button>
+          </div>
+        </form>
       </Modal>
     </div>
   );
