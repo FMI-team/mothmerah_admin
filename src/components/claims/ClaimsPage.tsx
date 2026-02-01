@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { PencilIcon, MoreDotIcon, PaperPlaneIcon, PlusIcon } from "@/icons";
+import { useState, useEffect, useCallback } from "react";
+import { PencilIcon, MoreDotIcon, PaperPlaneIcon } from "@/icons";
 import Badge from "../ui/badge/Badge";
 import {
   Table,
@@ -12,6 +12,20 @@ import {
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import Button from "../ui/button/Button";
+import { Modal } from "../ui/modal";
+import Label from "../form/Label";
+import { getAuthHeader } from "@/lib/auth";
+
+interface ApiClaim {
+  gg_claim_id: number;
+  related_order_id: string;
+  problem_description: string;
+  claimed_quantity_description: string;
+  gg_claim_status_id: number;
+  created_at: string;
+  items: unknown[];
+  evidences: unknown[];
+}
 
 interface TimelineEvent {
   id: string;
@@ -23,120 +37,164 @@ interface TimelineEvent {
   note?: string;
 }
 
+type ClaimStatus = "بانتظار الرد" | "قيد المعالجة" | "تم تصعيدها" | "تم حلها";
+
 interface Claim {
   id: string;
   claimId: string;
-  customerName: string;
-  sellerName: string;
-  status: "بانتظار الرد" | "قيد المعالجة" | "تم تصعيدها" | "تم حلها";
+  status: ClaimStatus;
   assignedTo?: string;
-  claimOwner: string;
-  claimant: string;
   claimType: string;
   amount: string;
   timeline: TimelineEvent[];
   documents?: string[];
   details?: string;
+  raw?: ApiClaim;
 }
 
-const mockClaims: Claim[] = [
-  {
-    id: "1",
-    claimId: "#7C6A3D",
-    customerName: "اسم العميل 1",
-    sellerName: "اسم البائع 1",
-    status: "بانتظار الرد",
-    claimOwner: "اسم العميل 1",
-    claimant: "اسم البائع 1",
-    claimType: "لم يتم استلام المنتج",
-    amount: "128.99 ريال",
-    timeline: [
-      {
-        id: "1",
-        type: "created",
-        title: "تم انشاء المطالبة",
-        date: "26 اكتوبر 2025, 9:51 صباحا",
-        description: "المطالبة مقدمة من العميل للطلب #7C6A3D",
-      },
-    ],
-  },
-  {
-    id: "2",
-    claimId: "#8B5E2F",
-    customerName: "اسم العميل 2",
-    sellerName: "اسم البائع 2",
-    status: "قيد المعالجة",
-    assignedTo: "----",
-    claimOwner: "اسم العميل 2",
-    claimant: "اسم البائع 2",
-    claimType: "لم يتم استلام المنتج",
-    amount: "128.99 ريال",
-    timeline: [
-      {
-        id: "1",
-        type: "created",
-        title: "تم انشاء المطالبة",
-        date: "26 اكتوبر 2025, 9:51 صباحا",
-        description: "المطالبة مقدمة من العميل للطلب #8B5E2F",
-      },
-      {
-        id: "2",
-        type: "assigned",
-        title: "تم التعيين الى الموظف",
-        date: "26 اكتوبر 2025, 9:58 صباحا",
-      },
-      {
-        id: "3",
-        type: "note",
-        title: "تمت اضافة ملاحظة داخلية",
-        date: "اسم البائع, 26 اكتوبر 2025, 11:02 صباحا",
-        author: "اسم البائع",
-        note: "قدم العميل تاكيد الشحن ولكن التتبع لم يتم تحديثه منذ 5 ايام . يتم التواصل مع البائع للحصول على التحديث.",
-      },
-    ],
-  },
-  {
-    id: "3",
-    claimId: "#9A4D1E",
-    customerName: "اسم العميل 3",
-    sellerName: "اسم البائع 3",
-    status: "تم تصعيدها",
-    claimOwner: "اسم العميل 3",
-    claimant: "اسم البائع 3",
-    claimType: "منتج تالف",
-    amount: "250.00 ريال",
-    timeline: [],
-  },
-  {
-    id: "4",
-    claimId: "#AB3C0D",
-    customerName: "اسم العميل 4",
-    sellerName: "اسم البائع 4",
-    status: "تم حلها",
-    claimOwner: "اسم العميل 4",
-    claimant: "اسم البائع 4",
-    claimType: "استرجاع",
-    amount: "75.50 ريال",
-    timeline: [],
-  },
-];
+const API_BASE = "https://api-testing.mothmerah.sa";
+
+const CLAIM_STATUS_LABELS: Record<number, ClaimStatus> = {
+  1: "بانتظار الرد",
+  2: "قيد المعالجة",
+  3: "تم تصعيدها",
+  4: "تم حلها",
+};
+
+const CLAIM_STATUS_KEYS = [
+  { key: "SUBMITTED", label: "بانتظار الرد" },
+  { key: "UNDER_REVIEW", label: "قيد المعالجة" },
+  { key: "RESOLVED", label: "تم تصعيدها" },
+  { key: "CLOSED", label: "تم حلها" },
+] as const;
+
+function parseApiError(body: unknown, fallback: string): string {
+  if (!body || typeof body !== "object") return fallback;
+  const b = body as { message?: string; detail?: string | { loc?: unknown[]; msg: string; type?: string }[] };
+  if (typeof b.message === "string" && b.message) return b.message;
+  const d = b.detail;
+  if (typeof d === "string" && d) return d;
+  if (Array.isArray(d) && d.length > 0) {
+    const messages = d
+      .map((item) => (item && typeof item === "object" && "msg" in item ? item.msg : null))
+      .filter((m): m is string => typeof m === "string");
+    if (messages.length > 0) return messages.join(" — ");
+  }
+  return fallback;
+}
+
+function formatClaimDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString("ar-SA", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+
+function mapApiClaimToClaim(api: ApiClaim): Claim {
+  const status: ClaimStatus =
+    CLAIM_STATUS_LABELS[api.gg_claim_status_id] ?? "بانتظار الرد";
+  const createdDate = formatClaimDate(api.created_at);
+  const timeline: TimelineEvent[] = [
+    {
+      id: "created",
+      type: "created",
+      title: "تم انشاء المطالبة",
+      date: createdDate,
+      description: `المطالبة مقدمة من العميل للطلب ${api.related_order_id}`,
+    },
+  ];
+  const documents: string[] = Array.isArray(api.evidences)
+    ? (api.evidences as { url?: string; file_name?: string }[])
+        .map((e) => e?.url || e?.file_name)
+        .filter(Boolean) as string[]
+    : [];
+
+  return {
+    id: String(api.gg_claim_id),
+    claimId: api.related_order_id,
+    status,
+    claimType: api.problem_description,
+    amount: api.claimed_quantity_description || "—",
+    timeline,
+    documents: documents.length ? documents : undefined,
+    raw: api,
+  };
+}
 
 export default function ClaimsPage() {
+  const [claims, setClaims] = useState<Claim[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedClaims, setSelectedClaims] = useState<string[]>([]);
-  const [selectedClaim, setSelectedClaim] = useState<Claim | null>(mockClaims[1]);
+  const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [actionDropdownOpen, setActionDropdownOpen] = useState<string | null>(
     null
   );
   const [currentPage, setCurrentPage] = useState(1);
-  const [activeTab, setActiveTab] = useState<"timeline" | "documents" | "details">("timeline");
+  const [statusFilter, setStatusFilter] = useState<string | "">("");
   const [noteText, setNoteText] = useState("");
+  const [commentVisibility, setCommentVisibility] = useState<"INTERNAL" | "BOTH_PARTIES">("INTERNAL");
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [newStatusKey, setNewStatusKey] = useState("");
+  const [statusReason, setStatusReason] = useState("");
+  const [statusUpdateError, setStatusUpdateError] = useState<string | null>(null);
+  const [statusUpdating, setStatusUpdating] = useState(false);
+  const [decisionModalOpen, setDecisionModalOpen] = useState(false);
+  const [decisionType, setDecisionType] = useState<"APPROVED" | "REJECTED" | "PARTIAL" | "REQUEST_INFO">("APPROVED");
+  const [decisionJustification, setDecisionJustification] = useState("");
+  const [decisionRefundAmount, setDecisionRefundAmount] = useState<number>(0);
+  const [decisionSubmitting, setDecisionSubmitting] = useState(false);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
   const itemsPerPage = 6;
-  const totalItems = 100;
+  const totalItems = claims.length;
 
-  const paginatedClaims = mockClaims.slice(
+  const fetchClaims = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const headers = getAuthHeader();
+      const url = statusFilter
+        ? `${API_BASE}/admin/guarantees/claims/status/${encodeURIComponent(statusFilter)}`
+        : `${API_BASE}/admin/guarantees/claims`;
+      const response = await fetch(url, {
+        method: "GET",
+        headers: { "Content-Type": "application/json", ...headers },
+      });
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(parseApiError(errBody, "فشل تحميل المطالبات"));
+      }
+      const data: ApiClaim[] = await response.json();
+      setClaims((data || []).map(mapApiClaimToClaim));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "فشل تحميل المطالبات");
+      setClaims([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    fetchClaims();
+  }, [fetchClaims]);
+
+  const paginatedClaims = claims.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+  const totalPages = Math.max(1, Math.ceil(claims.length / itemsPerPage));
 
   const toggleClaimSelection = (claimId: string) => {
     setSelectedClaims((prev) =>
@@ -155,7 +213,7 @@ export default function ClaimsPage() {
   };
 
   const getStatusBadgeColor = (
-    status: Claim["status"]
+    status: ClaimStatus
   ): "success" | "warning" | "error" | "info" | "primary" => {
     switch (status) {
       case "تم حلها":
@@ -171,68 +229,11 @@ export default function ClaimsPage() {
     }
   };
 
-  const getTimelineIcon = (type: TimelineEvent["type"]) => {
-    switch (type) {
-      case "created":
-        return (
-          <svg
-            className="w-5 h-5 text-green-500"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-        );
-      case "assigned":
-        return (
-          <svg
-            className="w-5 h-5 text-blue-500"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
-            />
-          </svg>
-        );
-      case "note":
-        return (
-          <svg
-            className="w-5 h-5 text-gray-500"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-            />
-          </svg>
-        );
-      default:
-        return null;
-    }
-  };
-
   const handleExportReport = () => {
     const csvContent = [
-      ["معرف المطالبة", "اسم العميل", "اسم البائع", "الحالة"],
-      ...mockClaims.map((claim) => [
+      ["معرف المطالبة", "الحالة"],
+      ...claims.map((claim) => [
         claim.claimId,
-        claim.customerName,
-        claim.sellerName,
         claim.status,
       ]),
     ]
@@ -250,11 +251,129 @@ export default function ClaimsPage() {
     document.body.removeChild(link);
   };
 
-  const handleSendNote = () => {
-    if (!noteText.trim()) return;
-    // Handle sending note
-    console.log("Sending note:", noteText);
-    setNoteText("");
+  const openStatusModal = () => {
+    if (!selectedClaim) return;
+    const currentKey = CLAIM_STATUS_KEYS.find((s) => s.label === selectedClaim.status)?.key ?? "";
+    setNewStatusKey(currentKey);
+    setStatusReason("");
+    setStatusUpdateError(null);
+    setStatusModalOpen(true);
+  };
+
+  const closeStatusModal = () => {
+    setStatusModalOpen(false);
+    setNewStatusKey("");
+    setStatusReason("");
+    setStatusUpdateError(null);
+  };
+
+  const openDecisionModal = () => {
+    if (!selectedClaim) return;
+    setDecisionType("APPROVED");
+    setDecisionJustification("");
+    setDecisionRefundAmount(0);
+    setDecisionError(null);
+    setDecisionModalOpen(true);
+  };
+
+  const closeDecisionModal = () => {
+    setDecisionModalOpen(false);
+    setDecisionJustification("");
+    setDecisionRefundAmount(0);
+    setDecisionError(null);
+  };
+
+  const handleSubmitDecision = async () => {
+    if (!selectedClaim) return;
+    setDecisionError(null);
+    setDecisionSubmitting(true);
+    try {
+      const headers = getAuthHeader();
+      const response = await fetch(
+        `${API_BASE}/admin/guarantees/claims/${encodeURIComponent(selectedClaim.id)}/decision`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...headers },
+          body: JSON.stringify({
+            decision_type: decisionType,
+            justification: decisionJustification.trim(),
+            refund_amount: decisionRefundAmount,
+          }),
+        }
+      );
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(parseApiError(errBody, "فشل إرسال القرار"));
+      }
+      closeDecisionModal();
+    } catch (err) {
+      setDecisionError(err instanceof Error ? err.message : "فشل إرسال القرار");
+    } finally {
+      setDecisionSubmitting(false);
+    }
+  };
+
+  const handleUpdateClaimStatus = async () => {
+    if (!selectedClaim || !newStatusKey.trim()) return;
+    setStatusUpdateError(null);
+    setStatusUpdating(true);
+    try {
+      const headers = getAuthHeader();
+      const params = new URLSearchParams({ status_key: newStatusKey });
+      if (statusReason.trim()) params.set("reason", statusReason.trim());
+      const response = await fetch(
+        `${API_BASE}/admin/guarantees/claims/${encodeURIComponent(selectedClaim.id)}/status?${params.toString()}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", ...headers },
+        }
+      );
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(parseApiError(errBody, "فشل تحديث الحالة"));
+      }
+      const newLabel = CLAIM_STATUS_KEYS.find((s) => s.key === newStatusKey)?.label ?? selectedClaim.status;
+      setSelectedClaim({ ...selectedClaim, status: newLabel as ClaimStatus });
+      setClaims((prev) =>
+        prev.map((c) =>
+          c.id === selectedClaim.id ? { ...c, status: newLabel as ClaimStatus } : c
+        )
+      );
+      closeStatusModal();
+    } catch (err) {
+      setStatusUpdateError(err instanceof Error ? err.message : "فشل تحديث الحالة");
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
+
+  const handleSendNote = async () => {
+    if (!selectedClaim || !noteText.trim()) return;
+    setCommentError(null);
+    setCommentSubmitting(true);
+    try {
+      const headers = getAuthHeader();
+      const response = await fetch(
+        `${API_BASE}/admin/guarantees/claims/${encodeURIComponent(selectedClaim.id)}/comments`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...headers },
+          body: JSON.stringify({
+            comment: noteText.trim(),
+            visibility: commentVisibility,
+          }),
+        }
+      );
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(parseApiError(errBody, "فشل إرسال التعليق"));
+      }
+      setNoteText("");
+    } catch (err) {
+      setCommentError(err instanceof Error ? err.message : "فشل إرسال التعليق");
+    } finally {
+      setCommentSubmitting(false);
+    }
   };
 
   return (
@@ -281,14 +400,22 @@ export default function ClaimsPage() {
 
               {/* Action Buttons */}
               <div className="flex flex-wrap gap-3">
-                <Button size="sm" className="bg-purple-500 hover:bg-purple-600">
+                <Button
+                  size="sm"
+                  className="bg-purple-500 hover:bg-purple-600"
+                  onClick={openStatusModal}
+                >
                   تغيير الحالة
                 </Button>
                 <Button size="sm" variant="outline">
                   تعيين
                 </Button>
-                <Button size="sm" variant="outline">
-                  اغلاق المطالبة
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={openDecisionModal}
+                >
+                  إرسال القرار النهائي
                 </Button>
               </div>
             </div>
@@ -299,22 +426,6 @@ export default function ClaimsPage() {
                 ملخص
               </h3>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    صاحب المطالبة:
-                  </span>
-                  <p className="mt-1 font-medium text-gray-800 dark:text-white/90">
-                    {selectedClaim.claimOwner}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    المدعى عليه:
-                  </span>
-                  <p className="mt-1 font-medium text-gray-800 dark:text-white/90">
-                    {selectedClaim.claimant}
-                  </p>
-                </div>
                 <div>
                   <span className="text-sm text-gray-500 dark:text-gray-400">
                     نوع المطالبة:
@@ -336,107 +447,93 @@ export default function ClaimsPage() {
 
             {/* Tabs and Content */}
             <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/3">
-              {/* Tabs */}
-              <div className="border-b border-gray-200 dark:border-gray-800">
-                <div className="flex gap-1 p-2">
-                  {[
-                    { id: "timeline", label: "الجدول الزمني" },
-                    { id: "documents", label: "المستندات" },
-                    { id: "details", label: "التفاصيل" },
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() =>
-                        setActiveTab(tab.id as "timeline" | "documents" | "details")
-                      }
-                      className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                        activeTab === tab.id
-                          ? "bg-purple-500 text-white"
-                          : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
 
               {/* Tab Content */}
               <div className="p-5 sm:p-6">
-                {activeTab === "timeline" && (
-                  <div className="space-y-6">
-                    {selectedClaim.timeline.map((event, index) => (
-                      <div key={event.id} className="flex gap-4">
-                        <div className="flex flex-col items-center">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
-                            {getTimelineIcon(event.type)}
-                          </div>
-                          {index < selectedClaim.timeline.length - 1 && (
-                            <div className="mt-2 h-16 w-0.5 bg-gray-200 dark:bg-gray-700"></div>
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <div className="mb-1">
-                            <h4 className="font-medium text-gray-800 dark:text-white/90">
-                              {event.title}
-                            </h4>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {event.date}
-                            </p>
-                          </div>
-                          {event.description && (
-                            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                              {event.description}
-                            </p>
-                          )}
-                          {event.note && (
-                            <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
-                              <p className="text-sm text-gray-700 dark:text-gray-300">
-                                {event.note}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
 
-                {activeTab === "documents" && (
-                  <div className="text-center text-gray-500 dark:text-gray-400">
-                    <p>لا توجد مستندات مرفقة</p>
+              <div className="space-y-4 text-sm">
+                    {selectedClaim.raw ? (
+                      <>
+                        <div>
+                          <span className="text-gray-500 dark:text-gray-400">معرف الطلب: </span>
+                          <span className="font-medium text-gray-800 dark:text-white/90">
+                            {selectedClaim.raw.related_order_id}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 dark:text-gray-400">تاريخ الإنشاء: </span>
+                          <span className="font-medium text-gray-800 dark:text-white/90">
+                            {formatClaimDate(selectedClaim.raw.created_at)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 dark:text-gray-400">وصف المشكلة: </span>
+                          <p className="mt-1 font-medium text-gray-800 dark:text-white/90">
+                            {selectedClaim.raw.problem_description}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 dark:text-gray-400">وصف الكمية المطلوبة: </span>
+                          <p className="mt-1 font-medium text-gray-800 dark:text-white/90">
+                            {selectedClaim.raw.claimed_quantity_description || "—"}
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-center text-gray-500 dark:text-gray-400">
+                        لا توجد تفاصيل إضافية
+                      </p>
+                    )}
                   </div>
-                )}
-
-                {activeTab === "details" && (
-                  <div className="text-center text-gray-500 dark:text-gray-400">
-                    <p>لا توجد تفاصيل إضافية</p>
-                  </div>
-                )}
               </div>
 
-              {/* Note Input */}
               <div className="border-t border-gray-200 p-4 dark:border-gray-800">
+                <div className="mb-2 flex gap-2">
+                  <label htmlFor="comment-visibility" className="sr-only">
+                    ظهور التعليق
+                  </label>
+                  <select
+                    id="comment-visibility"
+                    value={commentVisibility}
+                    onChange={(e) =>
+                      setCommentVisibility(e.target.value as "INTERNAL" | "BOTH_PARTIES")
+                    }
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90"
+                  >
+                    <option value="INTERNAL">داخلي فقط</option>
+                    <option value="BOTH_PARTIES">للطرفين</option>
+                  </select>
+                </div>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={noteText}
-                    onChange={(e) => setNoteText(e.target.value)}
-                    onKeyPress={(e) => {
+                    onChange={(e) => {
+                      setNoteText(e.target.value);
+                      if (commentError) setCommentError(null);
+                    }}
+                    onKeyDown={(e) => {
                       if (e.key === "Enter") {
+                        e.preventDefault();
                         handleSendNote();
                       }
                     }}
                     placeholder="اضف ملاحظة داخلية او ارسل رسالة..."
                     className="flex-1 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                    disabled={commentSubmitting}
                   />
                   <button
+                    type="button"
                     onClick={handleSendNote}
-                    className="flex items-center justify-center rounded-lg bg-purple-500 px-4 py-2.5 text-white transition-colors hover:bg-purple-600"
+                    disabled={commentSubmitting || !noteText.trim()}
+                    className="flex items-center justify-center rounded-lg bg-purple-500 px-4 py-2.5 text-white transition-colors hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <PaperPlaneIcon className="w-5 h-5" />
                   </button>
                 </div>
+                {commentError && (
+                  <p className="mt-2 text-sm text-red-600 dark:text-red-400">{commentError}</p>
+                )}
               </div>
             </div>
           </div>
@@ -461,12 +558,7 @@ export default function ClaimsPage() {
           </p>
         </div>
 
-        {/* Action Buttons */}
         <div className="flex flex-col gap-3">
-          <Button size="sm" className="w-full">
-            <PlusIcon className="w-4 h-4 ml-2" />
-            انشاء مطالبة
-          </Button>
           <button
             onClick={handleExportReport}
             className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
@@ -475,8 +567,44 @@ export default function ClaimsPage() {
           </button>
         </div>
 
-        {/* Claims Table */}
+        <div>
+          <label htmlFor="claim-status-filter" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            تصفية حسب الحالة
+          </label>
+          <select
+            id="claim-status-filter"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90"
+          >
+            <option value="">الكل</option>
+            {CLAIM_STATUS_KEYS.map(({ key, label }) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/3 sm:px-6">
+          {loading ? (
+            <div className="py-12 text-center text-gray-500 dark:text-gray-400">
+              جاري تحميل المطالبات...
+            </div>
+          ) : error ? (
+            <div className="py-12 text-center">
+              <p className="text-red-600 dark:text-red-400">{error}</p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-3"
+                onClick={() => fetchClaims()}
+              >
+                إعادة المحاولة
+              </Button>
+            </div>
+          ) : (
+          <>
           <div className="max-w-full overflow-x-auto">
             <Table>
               <TableHeader className="border-gray-100 dark:border-gray-800 border-y">
@@ -502,18 +630,6 @@ export default function ClaimsPage() {
                     isHeader
                     className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    اسم العميل
-                  </TableCell>
-                  <TableCell
-                    isHeader
-                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  >
-                    اسم البائع
-                  </TableCell>
-                  <TableCell
-                    isHeader
-                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  >
                     الحالة
                   </TableCell>
                   <TableCell
@@ -525,7 +641,13 @@ export default function ClaimsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {paginatedClaims.map((claim) => (
+                {paginatedClaims.length === 0 ? (
+                  <TableRow>
+                    <td colSpan={3} className="py-12 text-center text-gray-500 dark:text-gray-400">
+                      لا توجد مطالبات
+                    </td>
+                  </TableRow>
+                ) : paginatedClaims.map((claim) => (
                   <TableRow
                     key={claim.id}
                     className={`cursor-pointer transition-colors ${
@@ -550,12 +672,6 @@ export default function ClaimsPage() {
                           {claim.claimId}
                         </span>
                       </div>
-                    </TableCell>
-                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                      {claim.customerName}
-                    </TableCell>
-                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                      {claim.sellerName}
                     </TableCell>
                     <TableCell className="py-3">
                       <Badge size="sm" color={getStatusBadgeColor(claim.status)}>
@@ -629,10 +745,10 @@ export default function ClaimsPage() {
             </Table>
           </div>
 
-          {/* Pagination */}
+          {!loading && !error && claims.length > 0 && (
           <div className="flex items-center justify-between gap-4 pt-6">
             <div className="text-sm text-gray-500 dark:text-gray-400">
-              عرض {Math.min((currentPage - 1) * itemsPerPage + 1, totalItems)}-
+              عرض {totalItems === 0 ? 0 : Math.min((currentPage - 1) * itemsPerPage + 1, totalItems)}-
               {Math.min(currentPage * itemsPerPage, totalItems)} من {totalItems}
             </div>
             <div className="flex items-center gap-2">
@@ -643,7 +759,7 @@ export default function ClaimsPage() {
               >
                 السابق
               </button>
-              {[1, 2].map((page) => (
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                 <button
                   key={page}
                   onClick={() => setCurrentPage(page)}
@@ -658,15 +774,158 @@ export default function ClaimsPage() {
               ))}
               <button
                 onClick={() => setCurrentPage((prev) => prev + 1)}
-                disabled={currentPage >= Math.ceil(totalItems / itemsPerPage)}
+                disabled={currentPage >= totalPages}
                 className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
               >
                 التالي
               </button>
             </div>
           </div>
+          )}
+          </>
+          )}
         </div>
       </div>
+
+      <Modal
+        isOpen={statusModalOpen}
+        onClose={closeStatusModal}
+        className="max-w-[500px] p-5 lg:p-10"
+      >
+        <h4 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
+          تغيير الحالة
+        </h4>
+        {selectedClaim && (
+          <>
+            <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+              المطالبة {selectedClaim.claimId} — الحالة الحالية: {selectedClaim.status}
+            </p>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="claim-new-status">
+                  الحالة الجديدة <span className="text-red-500">*</span>
+                </Label>
+                <select
+                  id="claim-new-status"
+                  value={newStatusKey}
+                  onChange={(e) => setNewStatusKey(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90"
+                >
+                  <option value="">اختر الحالة</option>
+                  {CLAIM_STATUS_KEYS.map(({ key, label }) => (
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="claim-status-reason">السبب (اختياري)</Label>
+                <textarea
+                  id="claim-status-reason"
+                  value={statusReason}
+                  onChange={(e) => setStatusReason(e.target.value)}
+                  placeholder="سبب تغيير الحالة..."
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30"
+                />
+              </div>
+            </div>
+            {statusUpdateError && (
+              <p className="mt-3 text-sm text-red-600 dark:text-red-400">{statusUpdateError}</p>
+            )}
+            <div className="mt-6 flex gap-3 justify-end">
+              <Button size="sm" variant="outline" onClick={closeStatusModal} disabled={statusUpdating}>
+                إلغاء
+              </Button>
+              <Button
+                size="sm"
+                className="bg-purple-500 hover:bg-purple-600"
+                onClick={handleUpdateClaimStatus}
+                disabled={!newStatusKey.trim() || statusUpdating}
+              >
+                {statusUpdating ? "جاري التحديث..." : "تحديث الحالة"}
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={decisionModalOpen}
+        onClose={closeDecisionModal}
+        className="max-w-[500px] p-5 lg:p-10"
+      >
+        <h4 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
+          إرسال القرار النهائي
+        </h4>
+        {selectedClaim && (
+          <>
+            <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+              المطالبة {selectedClaim.claimId}
+            </p>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="decision-type">
+                  نوع القرار <span className="text-red-500">*</span>
+                </Label>
+                <select
+                  id="decision-type"
+                  value={decisionType}
+                  onChange={(e) =>
+                    setDecisionType(e.target.value as "APPROVED" | "REJECTED" | "PARTIAL" | "REQUEST_INFO")
+                  }
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90"
+                >
+                  <option value="APPROVED">موافق (APPROVED)</option>
+                  <option value="REJECTED">مرفوض (REJECTED)</option>
+                  <option value="PARTIAL">جزئي (PARTIAL)</option>
+                  <option value="REQUEST_INFO">طلب معلومات (REQUEST_INFO)</option>
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="decision-justification">التبرير</Label>
+                <textarea
+                  id="decision-justification"
+                  value={decisionJustification}
+                  onChange={(e) => setDecisionJustification(e.target.value)}
+                  placeholder="تبرير القرار..."
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30"
+                />
+              </div>
+              <div>
+                <Label htmlFor="decision-refund">مبلغ الاسترداد</Label>
+                <input
+                  id="decision-refund"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={decisionRefundAmount}
+                  onChange={(e) => setDecisionRefundAmount(Number(e.target.value) || 0)}
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90"
+                />
+              </div>
+            </div>
+            {decisionError && (
+              <p className="mt-3 text-sm text-red-600 dark:text-red-400">{decisionError}</p>
+            )}
+            <div className="mt-6 flex gap-3 justify-end">
+              <Button size="sm" variant="outline" onClick={closeDecisionModal} disabled={decisionSubmitting}>
+                إلغاء
+              </Button>
+              <Button
+                size="sm"
+                className="bg-purple-500 hover:bg-purple-600"
+                onClick={handleSubmitDecision}
+                disabled={decisionSubmitting}
+              >
+                {decisionSubmitting ? "جاري الإرسال..." : "إرسال القرار"}
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
