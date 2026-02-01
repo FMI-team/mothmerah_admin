@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { DownloadIcon, MoreDotIcon, PlusIcon } from "@/icons";
+import { DownloadIcon, MoreDotIcon } from "@/icons";
 import Badge from "../ui/badge/Badge";
 import {
   Table,
@@ -14,11 +14,9 @@ import {
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { getAuthHeader } from "@/lib/auth";
-import Button from "../ui/button/Button";
 import CreateProductForm from "./CreateProductForm";
 import EditProductForm from "./EditProductForm";
 
-// ------------- API Types -------------
 
 interface ApiTranslation {
   language_code: string;
@@ -349,14 +347,13 @@ export default function ProductsPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Button
-            size="sm"
-            className="bg-purple-500 hover:bg-purple-600"
+          <button
+            type="button"
             onClick={() => setIsCreateProductModalOpen(true)}
+            className="inline-flex items-center gap-2 rounded-lg bg-purple-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs hover:bg-purple-600"
           >
-            <PlusIcon className="w-4 h-4 ml-2" />
-            إنشاء منتج جديد
-          </Button>
+            إضافة منتج لتاجر
+          </button>
           <button
             onClick={handleExportCSV}
             className="inline-flex items-center gap-2 rounded-lg bg-purple-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs hover:bg-purple-600"
@@ -484,8 +481,17 @@ export default function ProductsPage() {
             جاري تحميل المنتجات...
           </div>
         ) : filteredProducts.length === 0 ? (
-          <div className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-            لا توجد منتجات متاحة حاليا
+          <div className="flex flex-col items-center justify-center gap-4 py-10">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              لا توجد منتجات متاحة حاليا
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsCreateProductModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg bg-purple-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs hover:bg-purple-600"
+            >
+              إضافة منتج لتاجر
+            </button>
           </div>
         ) : (
           <div className="max-w-full overflow-x-auto">
@@ -718,8 +724,25 @@ export default function ProductsPage() {
           setIsEditProductModalOpen(false);
           setEditingProduct(null);
         }}
-        onSuccess={() => {
-          fetchProducts();
+        onSuccess={(updatedProduct) => {
+          if (updatedProduct) {
+            setApiProducts((prev) =>
+              prev.map((p) =>
+                p.product_id === updatedProduct.product_id
+                  ? (updatedProduct as ApiProduct)
+                  : p
+              )
+            );
+            setProducts((prev) =>
+              prev.map((prod) =>
+                prod.id === updatedProduct.product_id
+                  ? mapApiProductToProduct(updatedProduct as ApiProduct)
+                  : prod
+              )
+            );
+          } else {
+            fetchProducts();
+          }
         }}
         product={editingProduct}
       />

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -20,6 +21,14 @@ interface Category {
   translations: CategoryTranslation[];
 }
 
+interface WholesalerUser {
+  user_id: string;
+  first_name: string;
+  last_name: string;
+  phone_number: string;
+  default_role: { role_name_key: string };
+}
+
 interface ProductForEdit {
   product_id: string;
   category_id: number;
@@ -33,10 +42,31 @@ interface ProductForEdit {
   status: { product_status_id: number; status_name_key: string };
 }
 
+interface ApiProductResponse {
+  product_id: string;
+  category_id: number;
+  base_price_per_unit: number;
+  unit_of_measure_id: number;
+  country_of_origin_code: string | null;
+  is_organic: boolean;
+  is_local_saudi_product: boolean;
+  main_image_url: string | null;
+  sku: string | null;
+  tags: unknown[];
+  seller_user_id: string;
+  created_at: string;
+  updated_at: string;
+  category: { category_id: number; category_name_key: string; translations: unknown[] };
+  status: { product_status_id: number; status_name_key: string };
+  unit_of_measure: { unit_id: number; unit_name_key: string; unit_abbreviation_key: string };
+  translations: unknown[];
+  packaging_options: unknown[];
+}
+
 interface EditProductFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (updatedProduct?: ApiProductResponse) => void;
   product: ProductForEdit | null;
 }
 
@@ -70,6 +100,8 @@ export default function EditProductForm({
 }: EditProductFormProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const [wholesalerUsers, setWholesalerUsers] = useState<WholesalerUser[]>([]);
+  const [isLoadingWholesalers, setIsLoadingWholesalers] = useState(false);
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
   const [productData, setProductData] = useState<ProductForEdit | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -79,10 +111,9 @@ export default function EditProductForm({
   const [countryOfOriginCode, setCountryOfOriginCode] = useState<string>("");
   const [isOrganic, setIsOrganic] = useState(false);
   const [isLocalSaudiProduct, setIsLocalSaudiProduct] = useState(false);
-  const [mainImageUrl, setMainImageUrl] = useState<string>("");
   const [sku, setSku] = useState<string>("");
-  const [tags, setTags] = useState<string[]>([]);
   const [productStatusId, setProductStatusId] = useState<string>("");
+  const [sellerUserId, setSellerUserId] = useState<string>("");
 
   const fetchProduct = useCallback(async (productId: string) => {
     setIsLoadingProduct(true);
@@ -122,9 +153,31 @@ export default function EditProductForm({
     }
   }, []);
 
+  const fetchWholesalerUsers = useCallback(async () => {
+    setIsLoadingWholesalers(true);
+    try {
+      const authHeader = getAuthHeader();
+      const res = await fetch("https://api-testing.mothmerah.sa/admin/users/", {
+        method: "GET",
+        headers: { "Content-Type": "application/json", ...authHeader },
+      });
+      if (!res.ok) throw new Error("فشل في جلب قائمة المستخدمين");
+      const data: WholesalerUser[] = await res.json();
+      const wholesalers = (data || []).filter(
+        (u) => u.default_role?.role_name_key === "WHOLESALER"
+      );
+      setWholesalerUsers(wholesalers);
+    } catch (err) {
+      setWholesalerUsers([]);
+    } finally {
+      setIsLoadingWholesalers(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (isOpen) {
       fetchCategories();
+      fetchWholesalerUsers();
       if (product?.product_id) {
         fetchProduct(product.product_id);
       } else {
@@ -133,7 +186,7 @@ export default function EditProductForm({
     } else {
       setProductData(null);
     }
-  }, [isOpen, product?.product_id, fetchCategories, fetchProduct]);
+  }, [isOpen, product?.product_id, fetchCategories, fetchWholesalerUsers, fetchProduct]);
 
   useEffect(() => {
     const source = productData ?? product;
@@ -142,10 +195,9 @@ export default function EditProductForm({
       setCountryOfOriginCode(source.country_of_origin_code ?? "");
       setIsOrganic(source.is_organic);
       setIsLocalSaudiProduct(source.is_local_saudi_product);
-      setMainImageUrl(source.main_image_url ?? "");
       setSku(source.sku ?? "");
-      setTags(Array.isArray(source.tags) ? (source.tags as string[]) : []);
       setProductStatusId(String(source.status.product_status_id));
+      setSellerUserId(source.seller_user_id ?? "");
       if (productData) setError(null);
     }
   }, [productData, product]);
@@ -154,26 +206,29 @@ export default function EditProductForm({
     e.preventDefault();
     const targetProduct = productData ?? product;
     if (!targetProduct?.product_id) return;
+    if (!sellerUserId.trim()) {
+      setError("يرجى اختيار البائع");
+      return;
+    }
     setError(null);
     setIsSubmitting(true);
 
     try {
-      const body: Record<string, unknown> = {
+      const body = {
         category_id: parseInt(categoryId, 10),
         country_of_origin_code: countryOfOriginCode || "",
         is_organic: isOrganic,
         is_local_saudi_product: isLocalSaudiProduct,
-        main_image_url: mainImageUrl || "",
         sku: sku || "",
-        tags,
         product_status_id: parseInt(productStatusId, 10),
+        seller_user_id: sellerUserId.trim(),
       };
 
       const authHeader = getAuthHeader();
       const res = await fetch(
-        `https://api-testing.mothmerah.sa/api/v1/products/${targetProduct.product_id}`,
+        `https://api-testing.mothmerah.sa/admin/products/update/${targetProduct.product_id}`,
         {
-          method: "PATCH",
+          method: "PUT",
           headers: {
             "Content-Type": "application/json",
             ...authHeader,
@@ -202,7 +257,8 @@ export default function EditProductForm({
         throw new Error(msg);
       }
 
-      onSuccess?.();
+      const updatedProduct: ApiProductResponse = await res.json().catch(() => undefined as unknown as ApiProductResponse);
+      onSuccess?.(updatedProduct);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "حدث خطأ في تحديث المنتج");
@@ -292,17 +348,6 @@ export default function EditProductForm({
                 </div>
 
                 <div>
-                  <Label>رابط الصورة الرئيسية</Label>
-                  <input
-                    type="url"
-                    placeholder="https://example.com/image.jpg"
-                    value={mainImageUrl}
-                    onChange={(e) => setMainImageUrl(e.target.value)}
-                    className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-                  />
-                </div>
-
-                <div>
                   <Label>SKU</Label>
                   <input
                     type="text"
@@ -314,20 +359,17 @@ export default function EditProductForm({
                 </div>
 
                 <div>
-                  <Label>الوسوم (مفصولة بفاصلة)</Label>
-                  <input
-                    type="text"
-                    placeholder="وسم1، وسم2"
-                    value={tags.join(", ")}
-                    onChange={(e) =>
-                      setTags(
-                        e.target.value
-                          .split(",")
-                          .map((s) => s.trim())
-                          .filter(Boolean)
-                      )
-                    }
-                    className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                  <Label>البائع (seller_user_id) <span className="text-error-500">*</span></Label>
+                  <Select
+                    key={`wholesalers-${wholesalerUsers.length}-${sellerUserId}`}
+                    options={wholesalerUsers.map((u) => ({
+                      value: u.user_id,
+                      label: `${u.first_name} ${u.last_name}`.trim() || u.phone_number || u.user_id,
+                    }))}
+                    placeholder={isLoadingWholesalers ? "جاري التحميل..." : "اختر البائع (تاجر جملة)"}
+                    onChange={setSellerUserId}
+                    defaultValue={sellerUserId}
+                    className="dark:bg-dark-900"
                   />
                 </div>
 

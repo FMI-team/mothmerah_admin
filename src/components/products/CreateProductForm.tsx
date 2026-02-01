@@ -68,6 +68,14 @@ interface PackagingOptionFormData {
   translations: PackagingOptionTranslation[];
 }
 
+interface WholesalerUser {
+  user_id: string;
+  first_name: string;
+  last_name: string;
+  phone_number: string;
+  default_role: { role_name_key: string };
+}
+
 const getArabicTranslation = (
   translations: CategoryTranslation[],
   field: "translated_category_name" | "translated_category_description"
@@ -83,20 +91,20 @@ export default function CreateProductForm({
 }: CreateProductFormProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const [wholesalerUsers, setWholesalerUsers] = useState<WholesalerUser[]>([]);
+  const [isLoadingWholesalers, setIsLoadingWholesalers] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Form fields
   const [categoryId, setCategoryId] = useState<string>("");
   const [basePricePerUnit, setBasePricePerUnit] = useState<string>("");
   const [unitOfMeasureId, setUnitOfMeasureId] = useState<string>("");
+  const [sellerUserId, setSellerUserId] = useState<string>("");
   const [countryOfOriginCode, setCountryOfOriginCode] = useState<string>("");
   const [isOrganic, setIsOrganic] = useState(false);
   const [isLocalSaudiProduct, setIsLocalSaudiProduct] = useState(false);
   const [mainImageUrl, setMainImageUrl] = useState<string>("");
   const [sku, setSku] = useState<string>("");
-  // seller_user_id سيكون دائماً هو المستخدم الحالي
-  const [sellerUserId, setSellerUserId] = useState<string>("");
 
   const [translationsData, setTranslationsData] = useState<TranslationFormData[]>([
     { language_code: "ar", translated_product_name: "", translated_description: "", translated_short_description: "" },
@@ -148,10 +156,11 @@ export default function CreateProductForm({
     }
   }, []);
 
-  const fetchCurrentUser = useCallback(async () => {
+  const fetchWholesalerUsers = useCallback(async () => {
+    setIsLoadingWholesalers(true);
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/users/me", {
+      const response = await fetch("https://api-testing.mothmerah.sa/admin/users/", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -160,25 +169,31 @@ export default function CreateProductForm({
       });
 
       if (!response.ok) {
-        console.error("Failed to fetch current user for seller_user_id");
-        return;
+        throw new Error("فشل في جلب قائمة المستخدمين");
       }
 
-      const data = await response.json();
-      if (data?.user_id) {
-        setSellerUserId(data.user_id);
+      const data: WholesalerUser[] = await response.json();
+      const wholesalers = (data || []).filter(
+        (u) => u.default_role?.role_name_key === "WHOLESALER"
+      );
+      setWholesalerUsers(wholesalers);
+      if (wholesalers.length === 1) {
+        setSellerUserId(wholesalers[0].user_id);
       }
     } catch (err) {
-      console.error("Error fetching current user for seller_user_id:", err);
+      console.error("Error fetching wholesaler users:", err);
+      setWholesalerUsers([]);
+    } finally {
+      setIsLoadingWholesalers(false);
     }
   }, []);
 
   useEffect(() => {
     if (isOpen) {
       fetchCategories();
-      fetchCurrentUser();
+      fetchWholesalerUsers();
     }
-  }, [isOpen, fetchCategories, fetchCurrentUser]);
+  }, [isOpen, fetchCategories, fetchWholesalerUsers]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -212,76 +227,73 @@ export default function CreateProductForm({
       return;
     }
 
-    // seller_user_id هو المستخدم الحالي
-    if (!sellerUserId) {
-      setError(
-        "تعذّر تحديد معرف المستخدم الحالي، يرجى إعادة تحميل الصفحة ثم المحاولة مرة أخرى."
-      );
+    if (!sellerUserId.trim()) {
+      setError("يرجى اختيار البائع");
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      const validatedTranslations = translationsData.filter(
-        (t) =>
-          t.translated_product_name ||
-          t.translated_description ||
-          t.translated_short_description
-      );
+      const validatedTranslations = translationsData
+        .filter(
+          (t) =>
+            t.translated_product_name ||
+            t.translated_description ||
+            t.translated_short_description
+        )
+        .map((t) => ({
+          language_code: t.language_code,
+          translated_product_name: t.translated_product_name,
+          translated_description: t.translated_description,
+          translated_short_description: t.translated_short_description,
+        }));
 
       const validatedPackagingOptions = packagingOptionsData.map((pkg) => ({
         quantity_in_packaging: parseFloat(pkg.quantity_in_packaging) || 0,
         unit_of_measure_id_for_quantity:
           parseInt(pkg.unit_of_measure_id_for_quantity, 10) || 0,
         base_price: parseFloat(pkg.base_price) || 0,
-        sku: pkg.sku || null,
-        barcode: pkg.barcode || null,
+        sku: pkg.sku || "",
+        barcode: pkg.barcode || "",
         is_default_option: pkg.is_default_option,
         is_active: pkg.is_active,
         sort_order: parseInt(pkg.sort_order, 10) || 0,
-        translations: pkg.translations.filter(
-          (tr) =>
-            tr.translated_packaging_option_name ||
-            tr.translated_custom_description
-        ),
+        translations: pkg.translations
+          .filter(
+            (tr) =>
+              tr.translated_packaging_option_name ||
+              tr.translated_custom_description
+          )
+          .map((tr) => ({
+            language_code: tr.language_code,
+            translated_packaging_option_name: tr.translated_packaging_option_name,
+            translated_custom_description: tr.translated_custom_description,
+          })),
       }));
 
-      const formData = new FormData();
-
-      formData.append("category_id", categoryId);
-      formData.append("seller_user_id", sellerUserId);
-      formData.append("translations", JSON.stringify(validatedTranslations));
-      formData.append(
-        "packaging_options",
-        JSON.stringify(validatedPackagingOptions)
-      );
-      formData.append("is_organic", String(isOrganic));
-      formData.append("is_local_saudi_product", String(isLocalSaudiProduct));
-
-      if (basePricePerUnit) {
-        formData.append("base_price_per_unit", basePricePerUnit);
-      }
-      if (unitOfMeasureId) {
-        formData.append("unit_of_measure_id", unitOfMeasureId);
-      }
-      if (countryOfOriginCode) {
-        formData.append("country_of_origin_code", countryOfOriginCode);
-      }
-      if (mainImageUrl) {
-        formData.append("main_image_url", mainImageUrl);
-      }
-      if (sku) {
-        formData.append("sku", sku);
-      }
+      const requestBody: Record<string, unknown> = {
+        category_id: parseInt(categoryId, 10),
+        base_price_per_unit: parseFloat(basePricePerUnit) || 0,
+        unit_of_measure_id: parseInt(unitOfMeasureId, 10) || 0,
+        translations: validatedTranslations,
+        packaging_options: validatedPackagingOptions,
+        seller_user_id: sellerUserId.trim(),
+      };
+      if (countryOfOriginCode.trim()) requestBody.country_of_origin_code = countryOfOriginCode.trim();
+      requestBody.is_organic = isOrganic;
+      requestBody.is_local_saudi_product = isLocalSaudiProduct;
+      if (mainImageUrl.trim()) requestBody.main_image_url = mainImageUrl.trim();
+      if (sku.trim()) requestBody.sku = sku.trim();
 
       const authHeader = getAuthHeader();
-      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/products/", {
+      const response = await fetch("https://api-testing.mothmerah.sa/admin/products/create", {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           ...authHeader,
         },
-        body: formData,
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -308,16 +320,15 @@ export default function CreateProductForm({
 
       const createdProduct = await response.json().catch(() => undefined);
 
-      // Reset form
       setCategoryId("");
       setBasePricePerUnit("");
       setUnitOfMeasureId("");
+      setSellerUserId("");
       setCountryOfOriginCode("");
       setIsOrganic(false);
       setIsLocalSaudiProduct(false);
       setMainImageUrl("");
       setSku("");
-      setSellerUserId("");
       setTranslationsData([
         {
           language_code: "ar",
@@ -446,54 +457,63 @@ export default function CreateProductForm({
                 </div>
               </div>
 
-              {/* Country of Origin Code */}
               <div>
-                <Label>رمز بلد المنشأ</Label>
-                <Input
-                  type="text"
-                  placeholder="مثال: SA"
-                  defaultValue={countryOfOriginCode}
-                  onChange={(e) => setCountryOfOriginCode(e.target.value)}
-                />
+                <Label>
+                  البائع (seller_user_id) <span className="text-error-500">*</span>
+                </Label>
+                <div className="relative">
+                  <Select
+                    key={`wholesalers-${wholesalerUsers.length}-${sellerUserId}`}
+                    options={wholesalerUsers.map((u) => ({
+                      value: u.user_id,
+                      label: `${u.first_name} ${u.last_name}`.trim() || u.phone_number || u.user_id,
+                    }))}
+                    placeholder={isLoadingWholesalers ? "جاري التحميل..." : "اختر البائع (تاجر جملة)"}
+                    onChange={(value) => setSellerUserId(value)}
+                    defaultValue={sellerUserId}
+                    className="dark:bg-dark-900"
+                  />
+                </div>
               </div>
 
-              {/* Checkboxes */}
+              <div>
+                <Label>رمز بلد المنشأ</Label>
+                <input
+                  type="text"
+                  value={countryOfOriginCode}
+                  onChange={(e) => setCountryOfOriginCode(e.target.value)}
+                  placeholder="مثال: SA"
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                />
+              </div>
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <Checkbox
-                    checked={isOrganic}
-                    onChange={setIsOrganic}
-                  />
+                  <Checkbox checked={isOrganic} onChange={setIsOrganic} />
                   <Label className="mb-0">منتج عضوي</Label>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Checkbox
-                    checked={isLocalSaudiProduct}
-                    onChange={setIsLocalSaudiProduct}
-                  />
+                  <Checkbox checked={isLocalSaudiProduct} onChange={setIsLocalSaudiProduct} />
                   <Label className="mb-0">منتج سعودي محلي</Label>
                 </div>
               </div>
-
-              {/* Main Image URL */}
               <div>
                 <Label>رابط الصورة الرئيسية</Label>
-                <Input
+                <input
                   type="url"
-                  placeholder="https://example.com/image.jpg"
-                  defaultValue={mainImageUrl}
+                  value={mainImageUrl}
                   onChange={(e) => setMainImageUrl(e.target.value)}
+                  placeholder="https://example.com/image.jpg"
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
                 />
               </div>
-
-              {/* SKU */}
               <div>
-                <Label>رمز المنتج (SKU)</Label>
-                <Input
+                <Label>رمز المنتج (sku)</Label>
+                <input
                   type="text"
-                  placeholder="SKU-12345"
-                  defaultValue={sku}
+                  value={sku}
                   onChange={(e) => setSku(e.target.value)}
+                  placeholder="SKU-12345"
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
                 />
               </div>
 
@@ -696,36 +716,6 @@ export default function CreateProductForm({
                           }}
                           className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
                         />
-                      </div>
-                    </div>
-                    <div className="mt-3 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          checked={pkg.is_default_option}
-                          onChange={(checked) => {
-                            const updated = [...packagingOptionsData];
-                            // Only one can be default
-                            if (checked) {
-                              updated.forEach((p, i) => {
-                                if (i !== pkgIndex) p.is_default_option = false;
-                              });
-                            }
-                            updated[pkgIndex].is_default_option = checked;
-                            setPackagingOptionsData(updated);
-                          }}
-                        />
-                        <Label className="mb-0 text-xs">الخيار الافتراضي</Label>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          checked={pkg.is_active}
-                          onChange={(checked) => {
-                            const updated = [...packagingOptionsData];
-                            updated[pkgIndex].is_active = checked;
-                            setPackagingOptionsData(updated);
-                          }}
-                        />
-                        <Label className="mb-0 text-xs">نشط</Label>
                       </div>
                     </div>
                     <div className="mt-4 space-y-3">
