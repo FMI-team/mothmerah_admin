@@ -14,8 +14,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ar" dir="rtl">
-      <body className={`${outfit.className} dark:bg-gray-900`}>
+    <html lang="ar" dir="rtl" className={outfit.className}>
+      <body className="dark:bg-gray-900">
         <ThemeProvider>
           <SidebarProvider>{children}</SidebarProvider>
         </ThemeProvider>
