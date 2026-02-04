@@ -1,4 +1,4 @@
-import Link from "next/link";
+/* eslint-disable @next/next/no-html-link-for-pages */
 import React from "react";
 
 interface BreadcrumbProps {
@@ -17,7 +17,7 @@ const PageBreadcrumb: React.FC<BreadcrumbProps> = ({ pageTitle }) => {
       <nav>
         <ol className="flex items-center gap-1.5">
           <li>
-            <Link
+            <a
               className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400"
               href="/"
             >
@@ -38,7 +38,7 @@ const PageBreadcrumb: React.FC<BreadcrumbProps> = ({ pageTitle }) => {
                   strokeLinejoin="round"
                 />
               </svg>
-            </Link>
+            </a>
           </li>
           <li className="text-sm text-gray-800 dark:text-white/90">
             {pageTitle}

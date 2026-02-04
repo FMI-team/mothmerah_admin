@@ -1,9 +1,8 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import React, { useState, useEffect } from "react";
-import Link from "next/link";
+import { useState, useEffect } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
-import Image from "next/image";
 import { getAuthHeader } from "@/lib/auth";
 import Badge from "../ui/badge/Badge";
 import Label from "../form/Label";
@@ -282,12 +281,12 @@ export default function AuctionDetailView() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Link
+          <a
             href={editHref}
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600"
           >
             تعديل
-          </Link>
+          </a>
           <button
             type="button"
             onClick={handleDelete}
@@ -361,14 +360,7 @@ export default function AuctionDetailView() {
             <div className="space-y-4">
               {auction.product.main_image_url && (
                 <div className="w-full max-w-xs overflow-hidden border border-gray-200 rounded-xl dark:border-gray-800">
-                  <Image
-                    src={auction.product.main_image_url}
-                    alt={productName}
-                    width={400}
-                    height={400}
-                    className="w-full h-auto object-cover"
-                    unoptimized
-                  />
+                  <img src={auction.product.main_image_url} alt={productName} className="w-full h-auto object-cover" />
                 </div>
               )}
               <div>

@@ -1,8 +1,8 @@
+/* eslint-disable @next/next/no-img-element */
 /* eslint-disable react-hooks/exhaustive-deps */
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import Image from "next/image";
 import { MoreDotIcon, DownloadIcon, ArrowUpIcon, PlusIcon } from "@/icons";
 import Badge from "../ui/badge/Badge";
 import {
@@ -19,7 +19,6 @@ import Button from "../ui/button/Button";
 import CreateProductForm from "./CreateProductForm";
 import EditProductForm from "./EditProductForm";
 
-// ------------- API Types -------------
 
 interface ApiTranslation {
   language_code: string;
@@ -94,8 +93,6 @@ interface ApiProduct {
   packaging_options: ApiPackagingOption[];
 }
 
-// ------------- UI Product Type -------------
-
 interface Product {
   id: string;
   name: string;
@@ -136,7 +133,6 @@ const mapApiProductToProduct = (api: ApiProduct): Product => {
       }`.trim()
     : `1 ${api.unit_of_measure?.unit_abbreviation_key ?? ""}`.trim();
 
-  // Map backend status_name_key to Arabic UI status for wholesaler
   let status: Product["status"];
   switch (api.status?.status_name_key) {
     case "ACTIVE":
@@ -154,12 +150,10 @@ const mapApiProductToProduct = (api: ApiProduct): Product => {
       break;
   }
 
-  // Determine sale type based on product tags or other criteria
-  // For now, defaulting to "ثابت" as we don't have this info in the API
   const saleType: "ثابت" | "مزاد" | "RFQ" = "ثابت";
 
   return {
-    id: api.product_id, // This is the product_id from API
+    id: api.product_id,
     name:
       arTranslation?.translated_product_name ??
       api.category?.category_name_key ??
@@ -167,7 +161,7 @@ const mapApiProductToProduct = (api: ApiProduct): Product => {
     imageUrl: api.main_image_url ?? "",
     category:
       arCategory?.translated_category_name ?? api.category?.category_name_key ?? "غير محدد",
-    owner: "مزارع", // Default owner, can be enhanced based on seller_user_id if needed
+    owner: "مزارع",
     availableQuantity,
     saleType,
     status,
@@ -216,7 +210,6 @@ export default function WholesalerProductsPage() {
           "فشل في حذف المنتج";
         throw new Error(msg);
       }
-      // DELETE is a soft delete (status change); refresh list so UI shows updated status or product is excluded
       await fetchProducts();
     } catch (err) {
       setError(
@@ -317,7 +310,6 @@ export default function WholesalerProductsPage() {
     document.body.removeChild(link);
   };
 
-  // Calculate statistics from real data
   const totalProductsCount = products.length;
   const pendingApprovalCount = products.filter((p) => p.status === "بانتظار الموافقة").length;
   const linkedToAuctionsCount = products.filter((p) => p.saleType === "مزاد").length;
@@ -360,7 +352,6 @@ export default function WholesalerProductsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
           ادارة كتالوج المنتجات
@@ -370,7 +361,6 @@ export default function WholesalerProductsPage() {
         </p>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {statisticsCards.map((card, index) => (
           <div
@@ -395,7 +385,6 @@ export default function WholesalerProductsPage() {
         ))}
       </div>
 
-      {/* Table */}
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/3 sm:px-6">
         <div className="mb-4 flex items-center justify-between">
           <Button
@@ -408,7 +397,8 @@ export default function WholesalerProductsPage() {
           </Button>
           <button
             onClick={handleExportCSV}
-            className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50
+            dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
           >
             <DownloadIcon className="w-4 h-4 inline-block ml-2" />
             تصدير ك CSV
@@ -502,21 +492,7 @@ export default function WholesalerProductsPage() {
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 overflow-hidden rounded-lg bg-gray-100">
                           {product.imageUrl ? (
-                            <Image
-                              src={product.imageUrl}
-                              alt={product.name}
-                              width={40}
-                              height={40}
-                              className="h-full w-full object-cover"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = "none";
-                                if (target.parentElement) {
-                                  target.parentElement.className += " bg-linear-to-tr from-yellow-400 to-orange-500";
-                                }
-                              }}
-                              unoptimized
-                            />
+                            <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
                           ) : (
                             <div className="h-full w-full bg-linear-to-tr from-yellow-400 to-orange-500" />
                           )}
@@ -568,7 +544,8 @@ export default function WholesalerProductsPage() {
                               setActionDropdownOpen(null);
                               router.push(`${pathname}/${product.id}`);
                             }}
-                            className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                            className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5
+                            dark:hover:text-gray-300"
                           >
                             عرض التفاصيل
                           </DropdownItem>
@@ -581,7 +558,8 @@ export default function WholesalerProductsPage() {
                                 setIsEditProductModalOpen(true);
                               }
                             }}
-                            className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                            className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5
+                            dark:hover:text-gray-300"
                           >
                             تعديل
                           </DropdownItem>
@@ -590,7 +568,8 @@ export default function WholesalerProductsPage() {
                               setActionDropdownOpen(null);
                               handleDeleteProduct(product.id);
                             }}
-                            className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-red-300"
+                            className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5
+                            dark:hover:text-red-300"
                           >
                             {deletingProductId === product.id ? "جاري الحذف..." : "حذف"}
                           </DropdownItem>
@@ -604,7 +583,6 @@ export default function WholesalerProductsPage() {
           </div>
         )}
 
-        {/* Pagination */}
         {!isLoading && products.length > 0 && (
           <div className="flex items-center justify-between gap-4 pt-6">
             <div className="text-sm text-gray-500 dark:text-gray-400">
@@ -615,7 +593,8 @@ export default function WholesalerProductsPage() {
               <button
                 onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
-                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed
+                dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
               >
                 السابق
               </button>
@@ -636,7 +615,8 @@ export default function WholesalerProductsPage() {
               <button
                 onClick={() => setCurrentPage((prev) => Math.min(Math.ceil(totalItems / itemsPerPage), prev + 1))}
                 disabled={currentPage >= Math.ceil(totalItems / itemsPerPage)}
-                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed
+                dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
               >
                 التالي
               </button>

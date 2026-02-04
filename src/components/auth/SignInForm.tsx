@@ -1,10 +1,10 @@
 "use client";
+
 import Checkbox from "@/components/form/input/Checkbox";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
 import { EyeCloseIcon, EyeIcon } from "@/icons";
-import Link from "next/link";
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { storeAuthTokens, fetchAndStoreUserInfo } from "@/lib/auth";
@@ -155,12 +155,12 @@ export default function SignInForm() {
                       {t("auth.signIn.keepMeLoggedIn")}
                     </span>
                   </div>
-                  <Link
+                  <a
                     href="/reset-password"
                     className="text-sm text-brand-500 hover:text-brand-600 dark:text-brand-400"
                   >
                     {t("auth.signIn.forgotPassword")}
-                  </Link>
+                  </a>
                 </div>
                 <div>
                   <Button

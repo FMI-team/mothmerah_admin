@@ -1,6 +1,6 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import Image from "next/image";
 import { UserDetails } from "./UserProfileView";
 import Badge from "../ui/badge/Badge";
 import { UserCircleIcon } from "@/icons";
@@ -46,14 +46,7 @@ export default function UserMetaCard({ userDetails }: UserMetaCardProps) {
           <div className="flex flex-col items-center w-full gap-6 xl:flex-row">
             <div className="w-20 h-20 overflow-hidden border border-gray-200 rounded-full dark:border-gray-800">
               {userDetails?.profile_picture_url ? (
-                <Image
-                  width={80}
-                  height={80}
-                  src={userDetails.profile_picture_url}
-                  alt={userDetails ? `${userDetails.first_name} ${userDetails.last_name}` : "user"}
-                  className="w-full h-full object-cover"
-                  unoptimized
-                />
+                <img src={userDetails.profile_picture_url} alt={userDetails ? `${userDetails.first_name} ${userDetails.last_name}` : "user"} className="w-full h-full object-cover" loading="lazy" />
               ) : (
                 <div className="flex items-center justify-center w-full h-full">
                   <UserCircleIcon className="text-purple-500" />

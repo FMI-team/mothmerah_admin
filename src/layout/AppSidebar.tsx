@@ -1,7 +1,8 @@
+/* eslint-disable @next/next/no-img-element */
+
 "use client";
+
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
 import { getUserType, fetchAndStoreUserInfo } from "@/lib/auth";
@@ -305,7 +306,7 @@ const AppSidebar: React.FC = () => {
             </button>
           ) : (
             nav.path && (
-              <Link
+              <a
                 href={nav.path}
                 className={`menu-item group ${
                   isActive(nav.path) ? "menu-item-active" : "menu-item-inactive"
@@ -323,7 +324,7 @@ const AppSidebar: React.FC = () => {
                 {(isExpanded || isHovered || isMobileOpen) && (
                   <span className={`menu-item-text`}>{nav.name}</span>
                 )}
-              </Link>
+              </a>
             )
           )}
           {nav.subItems && (isExpanded || isHovered || isMobileOpen) && (
@@ -342,7 +343,7 @@ const AppSidebar: React.FC = () => {
               <ul className="mt-2 space-y-1 ml-9">
                 {nav.subItems.map((subItem) => (
                   <li key={subItem.name}>
-                    <Link
+                    <a
                       href={subItem.path}
                       className={`menu-dropdown-item ${
                         isActive(subItem.path)
@@ -375,7 +376,7 @@ const AppSidebar: React.FC = () => {
                           </span>
                         )}
                       </span>
-                    </Link>
+                    </a>
                   </li>
                 ))}
               </ul>
@@ -443,7 +444,7 @@ const AppSidebar: React.FC = () => {
           !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
         }`}
       >
-        <Link 
+        <a 
           href={
             userType === "WHOLESALER" || userType === "wholesaler"
               ? "/wholesaler"
@@ -458,30 +459,13 @@ const AppSidebar: React.FC = () => {
         >
           {isExpanded || isHovered || isMobileOpen ? (
             <>
-              <Image
-                className="dark:hidden"
-                src="/images/logo/logo.png"
-                alt="Logo"
-                width={150}
-                height={40}
-              />
-              <Image
-                className="hidden dark:block"
-                src="/images/logo/logo.png"
-                alt="Logo"
-                width={150}
-                height={40}
-              />
+              <img src="/images/logo/logo.png" alt="Logo" className="dark:hidden" />
+              <img src="/images/logo/logo.png" alt="Logo" className="hidden dark:block" />
             </>
           ) : (
-            <Image
-              src="/images/logo/logo-icon.png"
-              alt="Logo"
-              width={32}
-              height={32}
-            />
+            <img src="/images/logo/logo-icon.png" alt="Logo" className="w-4 h-4" />
           )}
-        </Link>
+        </a>
       </div>
       <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
         <nav className="mb-6">

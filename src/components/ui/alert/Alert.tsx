@@ -1,4 +1,3 @@
-import Link from "next/link";
 import React from "react";
 
 interface AlertProps {
@@ -129,12 +128,12 @@ const Alert: React.FC<AlertProps> = ({
           <p className="text-sm text-gray-500 dark:text-gray-400">{message}</p>
 
           {showLink && (
-            <Link
+            <a
               href={linkHref}
               className="inline-block mt-3 text-sm font-medium text-gray-500 underline dark:text-gray-400"
             >
               {linkText}
-            </Link>
+            </a>
           )}
         </div>
       </div>
