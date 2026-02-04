@@ -180,7 +180,6 @@ export default function WarehouseManagement() {
       toolbar: {
         show: false,
       },
-      fontFamily: "Inter, sans-serif",
     },
     plotOptions: {
       bar: {
@@ -244,7 +243,6 @@ export default function WarehouseManagement() {
     chart: {
       type: "pie",
       height: 300,
-      fontFamily: "Inter, sans-serif",
     },
     colors: ["#8B5CF6", "#EC4899", "#EF4444"],
     labels: ["سليم", "قريب الانتهاء", "تالف"],

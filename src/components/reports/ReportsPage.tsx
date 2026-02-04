@@ -100,7 +100,6 @@ export default function ReportsPage() {
   const chartOptions: ApexOptions = {
     colors: ["#9C27B0", "#E1BEE7", "#CE93D8"],
     chart: {
-      fontFamily: "Inter, sans-serif",
       type: "bar",
       height: 300,
       toolbar: {

@@ -11,7 +11,6 @@ export default function TopSellingCategories() {
   const options: ApexOptions = {
     colors: ["#9C27B0"],
     chart: {
-      fontFamily: "Inter, sans-serif",
       type: "bar",
       height: 300,
       toolbar: {

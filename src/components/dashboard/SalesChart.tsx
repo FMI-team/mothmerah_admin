@@ -16,7 +16,6 @@ export default function SalesChart() {
     },
     colors: ["#9C27B0", "#E1BEE7"],
     chart: {
-      fontFamily: "Inter, sans-serif",
       height: 310,
       type: "area",
       toolbar: {
