@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { MoreDotIcon, DownloadIcon, ArrowUpIcon, CalenderIcon } from "@/icons";
+import { MoreDotIcon, DownloadIcon, ArrowUpIcon } from "@/icons";
 import Badge from "../ui/badge/Badge";
 import {
   Table,
@@ -180,7 +180,7 @@ export default function WarehouseManagement() {
       toolbar: {
         show: false,
       },
-      fontFamily: "Outfit, sans-serif",
+      fontFamily: "Inter, sans-serif",
     },
     plotOptions: {
       bar: {
@@ -244,7 +244,7 @@ export default function WarehouseManagement() {
     chart: {
       type: "pie",
       height: 300,
-      fontFamily: "Outfit, sans-serif",
+      fontFamily: "Inter, sans-serif",
     },
     colors: ["#8B5CF6", "#EC4899", "#EF4444"],
     labels: ["سليم", "قريب الانتهاء", "تالف"],

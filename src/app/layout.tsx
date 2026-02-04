@@ -1,12 +1,13 @@
-import { Outfit } from 'next/font/google';
+import { Inter } from 'next/font/google';
 import './globals.css';
 
 import { SidebarProvider } from '@/context/SidebarContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 
-const outfit = Outfit({
+const inter = Inter({
   subsets: ["latin"],
   preload: false,
+  variable: '--font-inter',
 });
 
 export default function RootLayout({
@@ -15,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ar" dir="rtl" className={outfit.className}>
+    <html lang="ar" dir="rtl" className={inter.className}>
       <body className="dark:bg-gray-900">
         <ThemeProvider>
           <SidebarProvider>{children}</SidebarProvider>

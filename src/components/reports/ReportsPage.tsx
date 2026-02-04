@@ -26,7 +26,7 @@ interface ReportCardProps {
 
 const ReportCard: React.FC<ReportCardProps> = ({ title, value, change, icon }) => {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 md:p-6">
       <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-xl dark:bg-gray-800">
         {icon}
       </div>
@@ -100,7 +100,7 @@ export default function ReportsPage() {
   const chartOptions: ApexOptions = {
     colors: ["#9C27B0", "#E1BEE7", "#CE93D8"],
     chart: {
-      fontFamily: "Outfit, sans-serif",
+      fontFamily: "Inter, sans-serif",
       type: "bar",
       height: 300,
       toolbar: {
@@ -313,10 +313,8 @@ export default function ReportsPage() {
         />
       </div>
 
-      {/* Chart and Filters Section */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Sales Trend Chart */}
-        <div className="lg:col-span-2 overflow-hidden rounded-2xl border border-gray-200 bg-white px-5 pt-5 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6 sm:pt-6">
+        <div className="lg:col-span-2 overflow-hidden rounded-2xl border border-gray-200 bg-white px-5 pt-5 dark:border-gray-800 dark:bg-white/3 sm:px-6 sm:pt-6">
           <div className="mb-4">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
               اتجاه المبيعات : 5 اكتوبر - 7 اكتوبر 2025
@@ -335,7 +333,7 @@ export default function ReportsPage() {
         </div>
 
         {/* Filters Section */}
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] sm:p-6">
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 sm:p-6">
           <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
             الفلاتر
           </h3>

@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+
 import { ApexOptions } from "apexcharts";
 import dynamic from "next/dynamic";
 
@@ -16,7 +16,7 @@ export default function SalesChart() {
     },
     colors: ["#9C27B0", "#E1BEE7"],
     chart: {
-      fontFamily: "Outfit, sans-serif",
+      fontFamily: "Inter, sans-serif",
       height: 310,
       type: "area",
       toolbar: {
@@ -120,7 +120,7 @@ export default function SalesChart() {
   ];
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-5 pt-5 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6 sm:pt-6">
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-5 pt-5 dark:border-gray-800 dark:bg-white/3 sm:px-6 sm:pt-6">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
