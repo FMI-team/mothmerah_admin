@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import React from "react";
-import AuctionManagement from "@/components/auctions/AuctionManagement";
+import AdminAuctionManagement from "@/components/auctions/AdminAuctionManagement";
 
 export const metadata: Metadata = {
   title: "ادارة المزادات | Auction Management",
@@ -8,6 +8,6 @@ export const metadata: Metadata = {
 };
 
 export default function Auctions() {
-  return <AuctionManagement />;
+  return <AdminAuctionManagement />;
 }
 

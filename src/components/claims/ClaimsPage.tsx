@@ -52,7 +52,7 @@ interface Claim {
   raw?: ApiClaim;
 }
 
-const API_BASE = "https://api-testing.mothmerah.sa";
+const API_BASE = "http://127.0.0.1:8000";
 
 const CLAIM_STATUS_LABELS: Record<number, ClaimStatus> = {
   1: "بانتظار الرد",

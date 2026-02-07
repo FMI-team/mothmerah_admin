@@ -120,7 +120,7 @@ export default function EditProductForm({
     setError(null);
     try {
       const authHeader = getAuthHeader();
-      const res = await fetch(`https://api-testing.mothmerah.sa/api/v1/products/${productId}`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/v1/products/${productId}`, {
         method: "GET",
         headers: { "Content-Type": "application/json", ...authHeader },
       });
@@ -139,7 +139,7 @@ export default function EditProductForm({
     setIsLoadingCategories(true);
     try {
       const authHeader = getAuthHeader();
-      const res = await fetch("https://api-testing.mothmerah.sa/api/v1/products/categories", {
+      const res = await fetch("http://127.0.0.1:8000/api/v1/products/categories", {
         method: "GET",
         headers: { "Content-Type": "application/json", ...authHeader },
       });
@@ -157,7 +157,7 @@ export default function EditProductForm({
     setIsLoadingWholesalers(true);
     try {
       const authHeader = getAuthHeader();
-      const res = await fetch("https://api-testing.mothmerah.sa/admin/users/", {
+      const res = await fetch("http://127.0.0.1:8000/admin/users/", {
         method: "GET",
         headers: { "Content-Type": "application/json", ...authHeader },
       });
@@ -226,7 +226,7 @@ export default function EditProductForm({
 
       const authHeader = getAuthHeader();
       const res = await fetch(
-        `https://api-testing.mothmerah.sa/admin/products/update/${targetProduct.product_id}`,
+        `http://127.0.0.1:8000/admin/products/update/${targetProduct.product_id}`,
         {
           method: "PUT",
           headers: {

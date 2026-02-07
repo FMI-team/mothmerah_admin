@@ -190,7 +190,7 @@ export async function fetchAndStoreUserInfo(): Promise<string | null> {
   if (!token) return null;
 
   try {
-    const response = await fetch("https://api-testing.mothmerah.sa/api/v1/users/me", {
+    const response = await fetch("http://127.0.0.1:8000/api/v1/users/me", {
       method: "GET",
       headers: {
         "Content-Type": "application/json",

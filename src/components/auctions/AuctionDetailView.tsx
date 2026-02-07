@@ -148,7 +148,7 @@ export default function AuctionDetailView() {
       try {
         const authHeader = getAuthHeader();
         const response = await fetch(
-          `https://api-testing.mothmerah.sa/api/v1/auctions/${auctionId}`,
+          `http://127.0.0.1:8000/api/v1/auctions/${auctionId}`,
           {
             method: "GET",
             headers: {
@@ -231,7 +231,7 @@ export default function AuctionDetailView() {
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        `https://api-testing.mothmerah.sa/api/v1/auctions/${auction.auction_id}`,
+        `http://127.0.0.1:8000/api/v1/auctions/${auction.auction_id}`,
         {
           method: "DELETE",
           headers: {

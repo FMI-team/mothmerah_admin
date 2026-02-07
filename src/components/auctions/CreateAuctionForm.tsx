@@ -9,11 +9,7 @@ const AUCTION_TYPES = [
   { auction_type_id: 1, type_name_key: "STANDARD_ENGLISH_AUCTION", label: "مزاد إنجليزي قياسي" },
 ];
 
-const AUCTION_STATUSES = [
-  { auction_status_id: 1, status_name_key: "SCHEDULED", label: "مجدول" },
-  { auction_status_id: 2, status_name_key: "ACTIVE", label: "نشط" },
-  { auction_status_id: 5, status_name_key: "UPCOMING", label: "قادم" },
-];
+
 
 const UNITS_OF_MEASURE = [
   { unit_id: 1, label: "كيلوغرام (kg)" },
@@ -28,6 +24,7 @@ interface CreateAuctionFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void | Promise<void>;
+  fetchAllProducts?: boolean;
 }
 
 function toDatetimeLocal(iso: string): string {
@@ -52,10 +49,13 @@ const defaultEnd = () => {
   return toDatetimeLocal(d.toISOString());
 };
 
+const API_BASE = "http://127.0.0.1:8000";
+
 export default function CreateAuctionForm({
   isOpen,
   onClose,
   onSuccess,
+  fetchAllProducts = false,
 }: CreateAuctionFormProps) {
   const [sellerUserId, setSellerUserId] = useState<string>("");
   const [products, setProducts] = useState<ProductOption[]>([]);
@@ -78,7 +78,7 @@ export default function CreateAuctionForm({
     setIsLoadingUser(true);
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/users/me", {
+      const response = await fetch("http://127.0.0.1:8000/api/v1/users/me", {
         method: "GET",
         headers: { "Content-Type": "application/json", ...authHeader },
       });
@@ -97,14 +97,17 @@ export default function CreateAuctionForm({
     setIsLoadingProducts(true);
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/products/me", {
+      const url = fetchAllProducts
+        ? `${API_BASE}/api/v1/products/`
+        : `${API_BASE}/api/v1/products/me`;
+      const response = await fetch(url, {
         method: "GET",
         headers: { "Content-Type": "application/json", ...authHeader },
       });
       if (!response.ok) throw new Error("فشل في جلب المنتجات");
       const data: Array<{
         product_id: string;
-        seller_user_id: string;
+        seller_user_id?: string;
         translations?: Array<{ language_code: string; translated_product_name?: string }>;
       }> = await response.json();
       const list = (data || []).map((p) => {
@@ -121,7 +124,7 @@ export default function CreateAuctionForm({
     } finally {
       setIsLoadingProducts(false);
     }
-  }, []);
+  }, [fetchAllProducts]);
 
   useEffect(() => {
     if (isOpen) {
@@ -169,7 +172,7 @@ export default function CreateAuctionForm({
     setError(null);
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/auctions/", {
+      const response = await fetch("http://127.0.0.1:8000/api/v1/auctions/", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeader },
         body: JSON.stringify(body),
@@ -203,7 +206,7 @@ export default function CreateAuctionForm({
             {error}
           </div>
         )}
-        {(isLoadingUser || isLoadingProducts) && !sellerUserId && products.length === 0 ? (
+        {(isLoadingUser || isLoadingProducts || (fetchAllProducts)) && !sellerUserId && products.length === 0 ? (
           <div className="py-8 text-center text-gray-500 dark:text-gray-400">
             جاري التحميل...
           </div>
@@ -239,21 +242,6 @@ export default function CreateAuctionForm({
                   {AUCTION_TYPES.map((t) => (
                     <option key={t.auction_type_id} value={String(t.auction_type_id)}>
                       {t.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="auction_status_id">حالة المزاد</Label>
-                <select
-                  id="auction_status_id"
-                  value={auctionStatusId}
-                  onChange={(e) => setAuctionStatusId(e.target.value)}
-                  className={inputClass}
-                >
-                  {AUCTION_STATUSES.map((s) => (
-                    <option key={s.auction_status_id} value={String(s.auction_status_id)}>
-                      {s.label}
                     </option>
                   ))}
                 </select>

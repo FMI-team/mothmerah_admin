@@ -229,7 +229,7 @@ export default function ProductsPage() {
 
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/products/", {
+      const response = await fetch("http://127.0.0.1:8000/api/v1/products/", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",

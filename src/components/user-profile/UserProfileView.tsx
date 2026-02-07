@@ -105,7 +105,7 @@ export default function UserProfileView() {
       try {
         const authHeader = getAuthHeader();
         const response = await fetch(
-          `https://api-testing.mothmerah.sa/admin/users/${userId}`,
+          `http://127.0.0.1:8000/admin/users/${userId}`,
           {
             method: "GET",
             headers: {

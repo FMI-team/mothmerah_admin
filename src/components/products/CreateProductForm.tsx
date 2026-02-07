@@ -132,7 +132,7 @@ export default function CreateProductForm({
     setIsLoadingCategories(true);
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/products/categories", {
+      const response = await fetch("http://127.0.0.1:8000/api/v1/products/categories", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -160,7 +160,7 @@ export default function CreateProductForm({
     setIsLoadingWholesalers(true);
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("https://api-testing.mothmerah.sa/admin/users/", {
+      const response = await fetch("http://127.0.0.1:8000/admin/users/", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -287,7 +287,7 @@ export default function CreateProductForm({
       if (sku.trim()) requestBody.sku = sku.trim();
 
       const authHeader = getAuthHeader();
-      const response = await fetch("https://api-testing.mothmerah.sa/admin/products/create", {
+      const response = await fetch("http://127.0.0.1:8000/admin/products/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
