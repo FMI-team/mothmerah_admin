@@ -14,7 +14,7 @@ import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import Button from "../ui/button/Button";
 import { Modal } from "../ui/modal";
 import Label from "../form/Label";
-import { getAuthHeader } from "@/lib/auth";
+import { getAuthHeader } from "../../../services/auth";
 
 interface ApiClaim {
   gg_claim_id: number;
@@ -52,7 +52,7 @@ interface Claim {
   raw?: ApiClaim;
 }
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "https://api-testing.mothmerah.sa";
 
 const CLAIM_STATUS_LABELS: Record<number, ClaimStatus> = {
   1: "بانتظار الرد",

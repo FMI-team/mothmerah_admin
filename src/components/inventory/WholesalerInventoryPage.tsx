@@ -13,9 +13,9 @@ import {
 } from "../ui/table";
 import { Modal } from "../ui/modal";
 import Label from "../form/Label";
-import { getAuthHeader } from "@/lib/auth";
+import { getAuthHeader } from "../../../services/auth";
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "https://api-testing.mothmerah.sa";
 
 interface InventoryStatus {
   status_name_key: string;
@@ -84,7 +84,7 @@ export default function WholesalerInventoryPage() {
     setError(null);
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("http://127.0.0.1:8000/api/v1/inventory/me", {
+      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/inventory/me", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",

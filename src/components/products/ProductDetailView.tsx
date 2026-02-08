@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { getAuthHeader } from "@/lib/auth";
+import { getAuthHeader } from "../../../services/auth";
 import Badge from "../ui/badge/Badge";
 import Label from "../form/Label";
 
@@ -124,7 +124,7 @@ export default function ProductDetailView() {
       try {
         const authHeader = getAuthHeader();
         const response = await fetch(
-          `http://127.0.0.1:8000/api/v1/products/${productId}`,
+          `https://api-testing.mothmerah.sa/api/v1/products/${productId}`,
           {
             method: "GET",
             headers: {

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { getAuthHeader } from "@/lib/auth";
+import { getAuthHeader } from "../../../services/auth";
 import { Modal } from "../ui/modal";
 import Label from "../form/Label";
 
@@ -49,7 +49,7 @@ const defaultEnd = () => {
   return toDatetimeLocal(d.toISOString());
 };
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "https://api-testing.mothmerah.sa";
 
 export default function CreateAuctionForm({
   isOpen,
@@ -78,7 +78,7 @@ export default function CreateAuctionForm({
     setIsLoadingUser(true);
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("http://127.0.0.1:8000/api/v1/users/me", {
+      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/users/me", {
         method: "GET",
         headers: { "Content-Type": "application/json", ...authHeader },
       });
@@ -172,7 +172,7 @@ export default function CreateAuctionForm({
     setError(null);
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("http://127.0.0.1:8000/api/v1/auctions/", {
+      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/auctions/", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeader },
         body: JSON.stringify(body),

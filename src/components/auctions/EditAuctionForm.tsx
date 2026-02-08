@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
-import { getAuthHeader } from "@/lib/auth";
+import { getAuthHeader } from "../../../services/auth";
 import Label from "../form/Label";
 import { ChevronLeftIcon } from "@/icons";
 
@@ -66,7 +66,7 @@ export default function EditAuctionForm() {
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        `http://127.0.0.1:8000/api/v1/auctions/${auctionId}`,
+        `https://api-testing.mothmerah.sa/api/v1/auctions/${auctionId}`,
         {
           method: "GET",
           headers: { "Content-Type": "application/json", ...authHeader },
@@ -117,7 +117,7 @@ export default function EditAuctionForm() {
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        `http://127.0.0.1:8000/api/v1/auctions/${auctionId}`,
+        `https://api-testing.mothmerah.sa/api/v1/auctions/${auctionId}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json", ...authHeader },

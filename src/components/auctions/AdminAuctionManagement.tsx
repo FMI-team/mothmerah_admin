@@ -16,10 +16,10 @@ import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import Button from "../ui/button/Button";
 import { Modal } from "../ui/modal";
 import Label from "../form/Label";
-import { getAuthHeader } from "@/lib/auth";
+import { getAuthHeader } from "../../../services/auth";
 import CreateAuctionForm from "./CreateAuctionForm";
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "https://api-testing.mothmerah.sa";
 
 interface Translation {
   language_code: string;

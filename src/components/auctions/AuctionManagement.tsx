@@ -13,7 +13,7 @@ import {
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import Button from "../ui/button/Button";
-import { getAuthHeader } from "@/lib/auth";
+import { getAuthHeader } from "../../../services/auth";
 import CreateAuctionForm from "./CreateAuctionForm";
 
 interface Translation {
@@ -125,7 +125,7 @@ export default function AuctionManagement() {
 
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("http://127.0.0.1:8000/api/v1/auctions/me/created", {
+      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/auctions/me/created", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -161,7 +161,7 @@ export default function AuctionManagement() {
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        `http://127.0.0.1:8000/api/v1/auctions/${auctionId}`,
+        `https://api-testing.mothmerah.sa/api/v1/auctions/${auctionId}`,
         {
           method: "DELETE",
           headers: {

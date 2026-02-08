@@ -14,7 +14,7 @@ import {
 } from "../ui/table";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
-import { getAuthHeader } from "@/lib/auth";
+import { getAuthHeader } from "../../../services/auth";
 import Button from "../ui/button/Button";
 import CreateProductForm from "./CreateProductForm";
 import EditProductForm from "./EditProductForm";
@@ -193,7 +193,7 @@ export default function WholesalerProductsPage() {
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        `http://127.0.0.1:8000/api/v1/products/${productId}`,
+        `https://api-testing.mothmerah.sa/api/v1/products/${productId}`,
         {
           method: "DELETE",
           headers: {
@@ -226,7 +226,7 @@ export default function WholesalerProductsPage() {
 
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("http://127.0.0.1:8000/api/v1/products/me", {
+      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/products/me", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",

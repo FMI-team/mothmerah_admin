@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import React from "react";
 import BaseUserAuctionsPageComponent from "@/components/auctions/BaseUserAuctionsPage";
 
 export const metadata: Metadata = {

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import Label from "../form/Label";
 import Button from "../ui/button/Button";
 import Switch from "../form/switch/Switch";
-import { getAuthHeader } from "@/lib/auth";
+import { getAuthHeader } from "../../../services/auth";
 
 interface UserData {
   phone_number: string;
@@ -81,7 +81,7 @@ export default function SettingsPage() {
 
       try {
         const authHeader = getAuthHeader();
-        const response = await fetch("http://127.0.0.1:8000/api/v1/users/me", {
+        const response = await fetch("https://api-testing.mothmerah.sa/api/v1/users/me", {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -145,7 +145,7 @@ export default function SettingsPage() {
 
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("http://127.0.0.1:8000/api/v1/users/me", {
+      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/users/me", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

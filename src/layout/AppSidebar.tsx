@@ -5,7 +5,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
-import { getUserType, fetchAndStoreUserInfo } from "@/lib/auth";
 import {
   ChevronDownIcon,
   GridIcon,
@@ -21,6 +20,7 @@ import {
   BoltIcon,
   BoxCubeIcon,
 } from "../icons/index";
+import { getRole } from "@/utils/auth";
 
 type NavItem = {
   name: string;
@@ -184,15 +184,11 @@ const othersItems: NavItem[] = [];
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
-  const [userType, setUserType] = useState<string | null>(null);
+  const [userType, setUserType] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const loadUserType = async () => {
-      let type = getUserType();
-      if (!type) {
-        type = await fetchAndStoreUserInfo();
-      }
-      setUserType(type);
+      setUserType(getRole());
     };
     loadUserType();
   }, []);

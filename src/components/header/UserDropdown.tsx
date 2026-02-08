@@ -2,58 +2,32 @@
 import React, { useEffect, useState } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
-import { logout, getAuthHeader, getUserType } from "@/lib/auth";
+import { fetchAndStoreUserInfo, logout } from "../../../services/auth";
 
 interface CurrentUser {
   fullName?: string;
   email?: string;
+  user_type?: string;
 }
 
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState<CurrentUser | null>(null);
-  const [userType, setUserType] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
-        const authHeader = getAuthHeader();
-        if (!authHeader.Authorization) return;
-
-        const res = await fetch(
-          "http://127.0.0.1:8000/api/v1/users/me",
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              ...authHeader,
-            },
-          }
-        );
-
-        if (!res.ok) {
+        const userInfo = await fetchAndStoreUserInfo();
+        if (!userInfo) {
           console.error("Failed to fetch current user");
           return;
         }
 
-        const data = (await res.json()) as {
-          email?: string;
-          username?: string;
-          user_email?: string;
-          first_name?: string;
-          given_name?: string;
-          last_name?: string;
-          full_name?: string;
-          name?: string;
-        };
+        const email: string | undefined = userInfo.email;
+        const firstName: string | undefined = userInfo.first_name;
+        const lastName: string | undefined = userInfo.last_name;
 
-        const email: string | undefined =
-          data.email || data.username || data.user_email;
-        const firstName: string | undefined =
-          data.first_name || data.given_name;
-        const lastName: string | undefined = data.last_name;
-
-        let fullName: string | undefined = data.full_name || data.name;
+        let fullName: string | undefined = userInfo.full_name;
         if (!fullName) {
           fullName = [firstName, lastName].filter(Boolean).join(" ");
         }
@@ -64,6 +38,7 @@ export default function UserDropdown() {
         setUser({
           fullName,
           email,
+          user_type: userInfo.user_type,
         });
       } catch (err) {
         console.error("Error fetching current user:", err);
@@ -72,12 +47,13 @@ export default function UserDropdown() {
 
     fetchCurrentUser();
 
-    const type = getUserType();
-    setUserType(type);
+    const type = user?.user_type;
+    if (type) {
+    }
   }, []);
 
   const getProfilePath = () => {
-    if (userType === "BASE_USER" || userType === "base_user" || userType === "BASEUSER" || userType === "baseUser") {
+    if (user?.user_type === "base_user") {
       return "/base-user/profile";
     }
     return "/profile";

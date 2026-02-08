@@ -11,7 +11,7 @@ import {
 } from "../ui/table";
 import Badge from "../ui/badge/Badge";
 import { UserCircleIcon, MoreDotIcon, PlusIcon } from "@/icons";
-import { getAuthHeader } from "@/lib/auth";
+import { getAuthHeader } from "../../../services/auth";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Modal } from "../ui/modal";
@@ -221,7 +221,7 @@ export default function UserManagement() {
 
 
       const response = await fetch(
-        `http://127.0.0.1:8000/admin/users/`,
+        `https://api-testing.mothmerah.sa/admin/users/`,
         {
           method: "GET",
           headers: {
@@ -292,7 +292,7 @@ export default function UserManagement() {
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        `http://127.0.0.1:8000/admin/users/${userId}`,
+        `https://api-testing.mothmerah.sa/admin/users/${userId}`,
         {
           method: "DELETE",
           headers: {
@@ -372,7 +372,7 @@ export default function UserManagement() {
 
     try {
       const authHeader = getAuthHeader();
-      const response = await fetch("http://127.0.0.1:8000/admin/users/create", {
+      const response = await fetch("https://api-testing.mothmerah.sa/admin/users/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -418,7 +418,7 @@ export default function UserManagement() {
     try {
       const authHeader = getAuthHeader();
       const response = await fetch(
-        `http://127.0.0.1:8000/admin/users/${selectedUserForStatusChange.user_id}/status`,
+        `https://api-testing.mothmerah.sa/admin/users/${selectedUserForStatusChange.user_id}/status`,
         {
           method: "PATCH",
           headers: {

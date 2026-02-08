@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { getAuthHeader } from "@/lib/auth";
+import { getAuthHeader } from "../../../services/auth";
 import UserMetaCard from "./UserMetaCard";
 import UserInfoCard from "./UserInfoCard";
 import UserAddressCard from "./UserAddressCard";
@@ -23,7 +23,7 @@ export default function BaseUserProfileView() {
         const authHeader = getAuthHeader();
 
         const meResponse = await fetch(
-          "http://127.0.0.1:8000/api/v1/users/me",
+          "https://api-testing.mothmerah.sa/api/v1/users/me",
           {
             method: "GET",
             headers: {
@@ -59,7 +59,7 @@ export default function BaseUserProfileView() {
 
       const authHeader = getAuthHeader();
       const response = await fetch(
-        "http://127.0.0.1:8000/api/v1/users/me",
+        "https://api-testing.mothmerah.sa/api/v1/users/me",
         {
           method: "PATCH",
           headers: {

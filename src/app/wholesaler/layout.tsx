@@ -4,7 +4,6 @@ import { useSidebar } from "@/context/SidebarContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
-import AuthGuard from "@/components/auth/AuthGuard";
 import React from "react";
 
 export default function WholesalerLayout({
@@ -22,7 +21,6 @@ export default function WholesalerLayout({
     : "lg:mr-[90px]";
 
   return (
-    <AuthGuard>
       <div className="min-h-screen xl:flex">
         {/* Sidebar and Backdrop */}
         <AppSidebar />
@@ -37,7 +35,6 @@ export default function WholesalerLayout({
           <div className="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6">{children}</div>
         </div>
       </div>
-    </AuthGuard>
   );
 }
 

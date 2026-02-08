@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { isTokenExpired, logout, isAuthenticated } from "@/lib/auth";
+import { isTokenExpired, logout, isAuthenticated } from "../../../services/auth";
 
 /**
  * Hook to check authentication status and handle token expiration

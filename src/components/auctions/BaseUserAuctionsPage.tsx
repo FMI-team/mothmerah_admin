@@ -2,18 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { MoreDotIcon, DownloadIcon } from "@/icons";
+import { MoreDotIcon } from "@/icons";
 import Badge from "../ui/badge/Badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../ui/table";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
-import { getAuthHeader } from "@/lib/auth";
+import { readAllAvailableAuctions } from "../../../services/auctions";
 
 interface Translation {
   language_code: string;
@@ -109,104 +103,121 @@ const getStatusBadgeColor = (statusName: string): "success" | "warning" | "error
   return "warning";
 };
 
+const ITEMS_PER_PAGE = 10;
+const ALL_STATUS = "";
+const ALL_TYPE = "";
+const ALL_SELLER = "";
+
 export default function BaseUserAuctionsPage() {
   const router = useRouter();
   const pathname = usePathname();
   const [auctions, setAuctions] = useState<ApiAuction[]>([]);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionDropdownOpen, setActionDropdownOpen] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState("الكل");
-
-  const itemsPerPage = 10;
+  const [statusFilter, setStatusFilter] = useState(ALL_STATUS);
+  const [typeFilter, setTypeFilter] = useState(ALL_TYPE);
+  const [sellerFilter, setSellerFilter] = useState(ALL_SELLER);
+  const [filterOptions, setFilterOptions] = useState<{
+    statuses: { key: string; label: string }[];
+    types: { key: string; label: string }[];
+    sellers: { id: string; label: string }[];
+  }>({ statuses: [], types: [], sellers: [] });
 
   const fetchAuctions = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-
+    const skip = (currentPage - 1) * ITEMS_PER_PAGE;
     try {
-      const authHeader = getAuthHeader();
-      const response = await fetch("http://127.0.0.1:8000/api/v1/auctions/", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeader,
-        },
+      const response = await readAllAvailableAuctions({
+        ...(statusFilter && { status_name_key: statusFilter }),
+        ...(typeFilter && { type_name_key: typeFilter }),
+        ...(sellerFilter && { seller_user_id: sellerFilter }),
+        skip,
+        limit: ITEMS_PER_PAGE,
       });
 
-      if (!response.ok) {
+      if (response.status !== 200) {
         throw new Error("فشل في جلب المزادات");
       }
 
-      const data: ApiAuction[] = await response.json();
-      setAuctions(data || []);
+      const body = response.data;
+      const data: ApiAuction[] = Array.isArray(body) ? body : body?.data ?? body?.results ?? [];
+      const total = typeof body?.total === "number" ? body.total : data.length;
+      setAuctions(data);
+      setTotalCount(total);
     } catch (err) {
-      console.error("Error fetching auctions:", err);
       setError(
         err instanceof Error ? err.message : "حدث خطأ في جلب بيانات المزادات"
       );
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [currentPage, statusFilter, typeFilter, sellerFilter]);
 
   useEffect(() => {
     fetchAuctions();
   }, [fetchAuctions]);
 
-  const filteredAuctions = auctions.filter((auction) => {
+  const fetchFilterOptions = useCallback(async () => {
+    try {
+      const res = await readAllAvailableAuctions({ skip: 0, limit: 200 });
+      const data: ApiAuction[] = Array.isArray(res.data) ? res.data : res.data?.data ?? res.data?.results ?? [];
+      const statuses = Array.from(
+        new Map(
+          data.map((a) => {
+            const key = a.auction_status.status_name_key;
+            const label = getArabicTranslation(a.auction_status.translations, "translated_status_name") || key;
+            return [key, { key, label }];
+          })
+        ).values()
+      );
+      const types = Array.from(
+        new Map(
+          data.map((a) => {
+            const key = a.auction_type.type_name_key;
+            const label = getArabicTranslation(a.auction_type.translations, "translated_type_name") || key;
+            return [key, { key, label }];
+          })
+        ).values()
+      );
+      const sellers = Array.from(
+        new Map(
+          data.map((a) => [
+            a.seller.user_id,
+            { id: a.seller.user_id, label: `${a.seller.first_name} ${a.seller.last_name}` },
+          ])
+        ).values()
+      );
+      setFilterOptions({ statuses, types, sellers });
+    } catch {
+      // keep empty options
+    }
+  }, []);
 
-    const matchesStatus =
-      statusFilter === "الكل" ||
-      auction.auction_status.status_name_key === statusFilter;
+  useEffect(() => {
+    fetchFilterOptions();
+  }, [fetchFilterOptions]);
 
-    return matchesStatus;
-  });
+  const totalItems = totalCount ?? auctions.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE));
+  const hasNextPage = auctions.length === ITEMS_PER_PAGE || (totalCount != null && currentPage * ITEMS_PER_PAGE < totalCount);
+  const displayTotal = totalCount ?? (currentPage > 1 ? currentPage * ITEMS_PER_PAGE : auctions.length);
 
-  const paginatedAuctions = filteredAuctions.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  const totalItems = filteredAuctions.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
-
-  const handleExportCSV = () => {
-    const csvContent = [
-      ["عنوان المزاد", "البائع", "المنتج", "الفئة", "نوع المزاد", "الحالة", "السعر الابتدائي", "أعلى مزايدة", "عدد المزايدات", "الكمية", "تاريخ البدء", "تاريخ الانتهاء"],
-      ...filteredAuctions.map((auction) => [
-        auction.custom_auction_title || "بدون عنوان",
-        `${auction.seller.first_name} ${auction.seller.last_name}`,
-        getArabicTranslation(auction.product.translations, "translated_product_name") || auction.product.product_id,
-        getArabicTranslation(auction.product.category.translations, "translated_category_name") || auction.product.category.category_name_key,
-        getArabicTranslation(auction.auction_type.translations, "translated_type_name") || auction.auction_type.type_name_key,
-        getArabicTranslation(auction.auction_status.translations, "translated_status_name") || auction.auction_status.status_name_key,
-        auction.starting_price_per_unit.toString(),
-        (auction.current_highest_bid_amount_per_unit || auction.starting_price_per_unit).toString(),
-        auction.total_bids_count.toString(),
-        auction.quantity_offered.toString(),
-        formatDate(auction.start_timestamp),
-        formatDate(auction.end_timestamp),
-      ]),
-    ]
-      .map((row) => row.join(","))
-      .join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `auctions_${new Date().getTime()}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleStatusChange = (value: string) => {
+    setStatusFilter(value);
+    setCurrentPage(1);
   };
-
-  const uniqueStatuses = Array.from(
-    new Set(auctions.map((a) => a.auction_status.status_name_key))
-  );
+  const handleTypeChange = (value: string) => {
+    setTypeFilter(value);
+    setCurrentPage(1);
+  };
+  const handleSellerChange = (value: string) => {
+    setSellerFilter(value);
+    setCurrentPage(1);
+  };
 
   return (
     <div className="space-y-6">
@@ -220,43 +231,36 @@ export default function BaseUserAuctionsPage() {
       </div>
 
       {error && (
-        <div className="p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800">
-          {error}
-        </div>
+        <div className="p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800"> {error} </div>
       )}
 
       <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 sm:p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-
           <div className="flex flex-wrap gap-3">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
-            >
-              <option value="الكل">الحالة: الكل</option>
-              {uniqueStatuses.map((statusKey) => {
-                const auction = auctions.find((a) => a.auction_status.status_name_key === statusKey);
-                if (!auction) return null;
-                const statusName = getArabicTranslation(
-                  auction.auction_status.translations,
-                  "translated_status_name"
-                ) || statusKey;
-                return (
-                  <option key={statusKey} value={statusKey}>
-                    {statusName}
-                  </option>
-                );
-              })}
+            <select value={statusFilter} onChange={(e) => handleStatusChange(e.target.value)} className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800
+            shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90
+            dark:focus:border-brand-800">
+              <option value={ALL_STATUS}>الحالة: الكل</option>
+              {filterOptions.statuses.map((s) => (
+                <option key={s.key} value={s.key}> {s.label} </option>
+              ))}
             </select>
-
-            <button
-              onClick={handleExportCSV}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-            >
-              <DownloadIcon className="w-4 h-4" />
-              تصدير ك CSV
-            </button>
+            <select value={typeFilter} onChange={(e) => handleTypeChange(e.target.value)} className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800
+            shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90
+            dark:focus:border-brand-800">
+              <option value={ALL_TYPE}>نوع المزاد: الكل</option>
+              {filterOptions.types.map((t) => (
+                <option key={t.key} value={t.key}> {t.label} </option>
+              ))}
+            </select>
+            <select value={sellerFilter} onChange={(e) => handleSellerChange(e.target.value)} className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm
+            text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90
+            dark:focus:border-brand-800">
+              <option value={ALL_SELLER}>البائع: الكل</option>
+              {filterOptions.sellers.map((s) => (
+                <option key={s.id} value={s.id}> {s.label} </option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
@@ -266,7 +270,7 @@ export default function BaseUserAuctionsPage() {
           <div className="flex items-center justify-center py-12">
             <div className="text-gray-500 dark:text-gray-400">جاري التحميل...</div>
           </div>
-        ) : paginatedAuctions.length === 0 ? (
+        ) : auctions.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-gray-500 dark:text-gray-400">لا توجد مزادات متاحة</div>
           </div>
@@ -276,88 +280,23 @@ export default function BaseUserAuctionsPage() {
               <Table>
                 <TableHeader className="border-gray-100 dark:border-gray-800 border-y">
                   <TableRow>
-                    <TableCell
-                      isHeader
-                      className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      عنوان المزاد
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      البائع
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      المنتج
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      الفئة
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      نوع المزاد
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      الحالة
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      السعر الابتدائي
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      أعلى مزايدة
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      عدد المزايدات
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      الكمية
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      تاريخ البدء
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      تاريخ الانتهاء
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      الاجراءات
-                    </TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">عنوان المزاد</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">البائع</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">المنتج</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">الفئة</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">نوع المزاد</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">الحالة</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">السعر الابتدائي</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">أعلى مزايدة</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">عدد المزايدات</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">الكمية</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">تاريخ البدء</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">تاريخ الانتهاء</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">الاجراءات</TableCell>
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {paginatedAuctions.map((auction) => {
+                  {auctions.map((auction) => {
                     const statusName = getArabicTranslation(
                       auction.auction_status.translations,
                       "translated_status_name"
@@ -374,76 +313,43 @@ export default function BaseUserAuctionsPage() {
                       auction.product.category.translations,
                       "translated_category_name"
                     ) || auction.product.category.category_name_key;
-
                     return (
                       <TableRow key={auction.auction_id}>
                         <TableCell className="py-3">
-                          <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
-                            {auction.custom_auction_title || "بدون عنوان"}
-                          </span>
+                          <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90"> {auction.custom_auction_title || "بدون عنوان"} </span>
                         </TableCell>
-                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                          {`${auction.seller.first_name} ${auction.seller.last_name}`}
-                        </TableCell>
-                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                          {productName}
-                        </TableCell>
-                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                          {categoryName}
-                        </TableCell>
-                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                          {typeName}
-                        </TableCell>
+                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90"> {`${auction.seller.first_name} ${auction.seller.last_name}`} </TableCell>
+                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90"> {productName} </TableCell>
+                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90"> {categoryName} </TableCell>
+                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90"> {typeName} </TableCell>
                         <TableCell className="py-3">
-                          <Badge
-                            size="sm"
-                            color={getStatusBadgeColor(statusName)}
-                          >
-                            {statusName}
-                          </Badge>
+                          <Badge size="sm" color={getStatusBadgeColor(statusName)}> {statusName} </Badge>
                         </TableCell>
-                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                          {auction.starting_price_per_unit.toFixed(2)} ر.س
-                        </TableCell>
+                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90"> {auction.starting_price_per_unit.toFixed(2)} ر.س </TableCell>
                         <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
                           {(auction.current_highest_bid_amount_per_unit || auction.starting_price_per_unit).toFixed(2)} ر.س
                         </TableCell>
-                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                          {auction.total_bids_count}
-                        </TableCell>
-                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                          {auction.quantity_offered}
-                        </TableCell>
-                        <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                          {formatDate(auction.start_timestamp)}
-                        </TableCell>
-                        <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                          {formatDate(auction.end_timestamp)}
-                        </TableCell>
+                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90"> {auction.total_bids_count} </TableCell>
+                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90"> {auction.quantity_offered} </TableCell>
+                        <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400"> {formatDate(auction.start_timestamp)} </TableCell>
+                        <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400"> {formatDate(auction.end_timestamp)} </TableCell>
                         <TableCell className="py-3">
                           <div className="relative">
-                            <button
-                              onClick={() =>
-                                setActionDropdownOpen(
+                            <button onClick={() => setActionDropdownOpen(
                                   actionDropdownOpen === auction.auction_id ? null : auction.auction_id
                                 )
                               }
-                              className="p-1.5 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-                            >
+                              className="p-1.5 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800">
                               <MoreDotIcon className="w-5 h-5" />
                             </button>
-                            <Dropdown
-                              isOpen={actionDropdownOpen === auction.auction_id}
-                              onClose={() => setActionDropdownOpen(null)}
-                              className="absolute left-0 mt-2 w-40 p-2 z-50"
-                            >
+                            <Dropdown isOpen={actionDropdownOpen === auction.auction_id} onClose={() => setActionDropdownOpen(null)} className="absolute left-0 mt-2 w-40 p-2 z-50">
                               <DropdownItem
                                 onItemClick={() => {
                                   setActionDropdownOpen(null);
                                   router.push(`${pathname}/${auction.auction_id}`);
                                 }}
-                                className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-                              >
+                                className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5
+                                dark:hover:text-gray-300">
                                 عرض التفاصيل
                               </DropdownItem>
                             </Dropdown>
@@ -456,40 +362,31 @@ export default function BaseUserAuctionsPage() {
               </Table>
             </div>
 
-            {totalPages > 1 && (
+            {(totalPages > 1 || currentPage > 1) && (
               <div className="flex items-center justify-between gap-4 pt-6">
                 <div className="text-sm text-gray-500 dark:text-gray-400">
-                  عرض {Math.min((currentPage - 1) * itemsPerPage + 1, totalItems)}-
-                  {Math.min(currentPage * itemsPerPage, totalItems)} من {totalItems}
+                  عرض {(currentPage - 1) * ITEMS_PER_PAGE + 1}-
+                  {Math.min(currentPage * ITEMS_PER_PAGE, displayTotal)} من {displayTotal}
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                    className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
+                  <button onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm
+                  text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300
+                  dark:hover:bg-gray-700">
                     السابق
                   </button>
                   {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                     const page = i + 1;
                     return (
-                      <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
-                        className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${currentPage === page
+                      <button key={page} onClick={() => setCurrentPage(page)} className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${currentPage === page
                           ? "bg-purple-500 text-white"
                           : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                          }`}
-                      >
+                          }`}>
                         {page}
                       </button>
                     );
                   })}
-                  <button
-                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage >= totalPages}
-                    className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
+                  <button onClick={() => setCurrentPage((prev) => prev + 1)} disabled={!hasNextPage} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700
+                  transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
                     التالي
                   </button>
                 </div>
