@@ -41,6 +41,10 @@ export default function SignInForm() {
       if (getRole() === 'BASE_USER') {
         router.push('/base-user')
       }
+
+      if (getRole() === 'WHOLESALER') {
+        router.push('/wholesaler')
+      }
     } catch (error) {
       setErrorMsg(error instanceof Error ? error.message : String(error));
     } finally {

@@ -18,16 +18,15 @@ export async function middleware(request: NextRequest) {
             return NextResponse.redirect(new URL('/signin', request.url));
         }
     }
-    
-    // If accessing practitioner routes
-    // if (pathname.startsWith('/practitioner')) {
-    //     if (!token || !role) {
-    //         return NextResponse.redirect(new URL('/', request.url));
-    //     }
-    //     if (role !== 'practitioner') {
-    //         return NextResponse.redirect(new URL('/lawyer', request.url));
-    //     }
-    // }
+
+    if (pathname.startsWith('/wholesaler')) {
+        if (!token?.value || !role?.value) {
+            return NextResponse.redirect(new URL('/signin', request.url));
+        }
+        if (role.value !== 'WHOLESALER') {
+            return NextResponse.redirect(new URL('/signin', request.url));
+        }
+    }
     
     return NextResponse.next();
 }

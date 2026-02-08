@@ -2,11 +2,12 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { getAuthHeader } from "../../../services/auth";
 import { Modal } from "../ui/modal";
 import Label from "../form/Label";
 import Select from "../form/Select";
 import Checkbox from "../form/input/Checkbox";
+import { readProduct, updateProduct } from "../../../services/products";
+import { readCategories } from "../../../services/categories";
 
 interface CategoryTranslation {
   language_code: string;
@@ -100,8 +101,6 @@ export default function EditProductForm({
 }: EditProductFormProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
-  const [wholesalerUsers, setWholesalerUsers] = useState<WholesalerUser[]>([]);
-  const [isLoadingWholesalers, setIsLoadingWholesalers] = useState(false);
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
   const [productData, setProductData] = useState<ProductForEdit | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -113,20 +112,15 @@ export default function EditProductForm({
   const [isLocalSaudiProduct, setIsLocalSaudiProduct] = useState(false);
   const [sku, setSku] = useState<string>("");
   const [productStatusId, setProductStatusId] = useState<string>("");
-  const [sellerUserId, setSellerUserId] = useState<string>("");
 
   const fetchProduct = useCallback(async (productId: string) => {
     setIsLoadingProduct(true);
     setError(null);
     try {
-      const authHeader = getAuthHeader();
-      const res = await fetch(`https://api-testing.mothmerah.sa/api/v1/products/${productId}`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json", ...authHeader },
-      });
-      if (!res.ok) throw new Error("فشل في جلب بيانات المنتج");
-      const data = await res.json();
-      setProductData(data as ProductForEdit);
+      const res = await readProduct(productId);
+      if (res.status !== 200) throw new Error("فشل في جلب بيانات المنتج");
+      const data: ProductForEdit = res.data;
+      setProductData(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "حدث خطأ في جلب بيانات المنتج");
       setProductData(null);
@@ -138,13 +132,9 @@ export default function EditProductForm({
   const fetchCategories = useCallback(async () => {
     setIsLoadingCategories(true);
     try {
-      const authHeader = getAuthHeader();
-      const res = await fetch("https://api-testing.mothmerah.sa/api/v1/products/categories", {
-        method: "GET",
-        headers: { "Content-Type": "application/json", ...authHeader },
-      });
-      if (!res.ok) throw new Error("فشل في جلب الفئات");
-      const data: Category[] = await res.json();
+      const res = await readCategories();
+      if (res.status !== 200) throw new Error("فشل في جلب الفئات");
+      const data: Category[] = res.data;
       setCategories(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "حدث خطأ في جلب الفئات");
@@ -153,31 +143,9 @@ export default function EditProductForm({
     }
   }, []);
 
-  const fetchWholesalerUsers = useCallback(async () => {
-    setIsLoadingWholesalers(true);
-    try {
-      const authHeader = getAuthHeader();
-      const res = await fetch("https://api-testing.mothmerah.sa/admin/users/", {
-        method: "GET",
-        headers: { "Content-Type": "application/json", ...authHeader },
-      });
-      if (!res.ok) throw new Error("فشل في جلب قائمة المستخدمين");
-      const data: WholesalerUser[] = await res.json();
-      const wholesalers = (data || []).filter(
-        (u) => u.default_role?.role_name_key === "WHOLESALER"
-      );
-      setWholesalerUsers(wholesalers);
-    } catch (err) {
-      setWholesalerUsers([]);
-    } finally {
-      setIsLoadingWholesalers(false);
-    }
-  }, []);
-
   useEffect(() => {
     if (isOpen) {
       fetchCategories();
-      fetchWholesalerUsers();
       if (product?.product_id) {
         fetchProduct(product.product_id);
       } else {
@@ -186,7 +154,7 @@ export default function EditProductForm({
     } else {
       setProductData(null);
     }
-  }, [isOpen, product?.product_id, fetchCategories, fetchWholesalerUsers, fetchProduct]);
+  }, [isOpen, product?.product_id, fetchCategories, fetchProduct]);
 
   useEffect(() => {
     const source = productData ?? product;
@@ -197,7 +165,6 @@ export default function EditProductForm({
       setIsLocalSaudiProduct(source.is_local_saudi_product);
       setSku(source.sku ?? "");
       setProductStatusId(String(source.status.product_status_id));
-      setSellerUserId(source.seller_user_id ?? "");
       if (productData) setError(null);
     }
   }, [productData, product]);
@@ -206,10 +173,6 @@ export default function EditProductForm({
     e.preventDefault();
     const targetProduct = productData ?? product;
     if (!targetProduct?.product_id) return;
-    if (!sellerUserId.trim()) {
-      setError("يرجى اختيار البائع");
-      return;
-    }
     setError(null);
     setIsSubmitting(true);
 
@@ -220,44 +183,15 @@ export default function EditProductForm({
         is_organic: isOrganic,
         is_local_saudi_product: isLocalSaudiProduct,
         sku: sku || "",
-        product_status_id: parseInt(productStatusId, 10),
-        seller_user_id: sellerUserId.trim(),
+        product_status_id: parseInt(productStatusId, 10)
       };
+      const res = await updateProduct(targetProduct.product_id, body)
 
-      const authHeader = getAuthHeader();
-      const res = await fetch(
-        `https://api-testing.mothmerah.sa/admin/products/update/${targetProduct.product_id}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeader,
-          },
-          body: JSON.stringify(body),
-        }
-      );
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        let msg = "فشل في تحديث المنتج";
-        if (errData.message && typeof errData.message === "string") {
-          msg = errData.message;
-        } else if (Array.isArray(errData.detail)) {
-          const parts = errData.detail.map(
-            (d: { loc?: unknown[]; msg?: string }) => {
-              const loc = Array.isArray(d.loc) ? d.loc.join(".") : "";
-              const m = typeof d.msg === "string" ? d.msg : "";
-              return loc ? `${loc}: ${m}` : m;
-            }
-          );
-          if (parts.length) msg = parts.join("; ");
-        } else if (typeof errData.detail === "string") {
-          msg = errData.detail;
-        }
-        throw new Error(msg);
+      if (res.status !== 200) {
+        throw new Error("فشل في تحديث المنتج");
       }
 
-      const updatedProduct: ApiProductResponse = await res.json().catch(() => undefined as unknown as ApiProductResponse);
+      const updatedProduct: ApiProductResponse = res.data;
       onSuccess?.(updatedProduct);
       onClose();
     } catch (err) {
@@ -286,12 +220,8 @@ export default function EditProductForm({
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-[600px] m-4">
       <div className="no-scrollbar relative w-full max-w-[600px] overflow-y-auto rounded-3xl bg-white p-4 dark:bg-gray-900 lg:p-11">
         <div className="px-2 pr-14">
-          <h4 className="mb-2 text-2xl font-semibold text-gray-800 dark:text-white/90">
-            تعديل المنتج
-          </h4>
-          <p className="mb-6 text-sm text-gray-500 dark:text-gray-400 lg:mb-7">
-            تحديث معلومات المنتج
-          </p>
+          <h4 className="mb-2 text-2xl font-semibold text-gray-800 dark:text-white/90">تعديل المنتج</h4>
+          <p className="mb-6 text-sm text-gray-500 dark:text-gray-400 lg:mb-7">تحديث معلومات المنتج</p>
         </div>
 
         {error && (
@@ -301,105 +231,58 @@ export default function EditProductForm({
         )}
 
         {isLoadingProduct ? (
-          <div className="flex items-center justify-center py-12 text-sm text-gray-500 dark:text-gray-400">
-            جاري تحميل بيانات المنتج...
-          </div>
+          <div className="flex items-center justify-center py-12 text-sm text-gray-500 dark:text-gray-400">جاري تحميل بيانات المنتج...</div>
         ) : (
           <form key={displayProduct?.product_id ?? "edit-form"} onSubmit={handleSubmit} className="flex flex-col">
             <div className="custom-scrollbar max-h-[70vh] overflow-y-auto px-2 pb-3">
               <div className="space-y-6">
                 <div>
                   <Label>الفئة <span className="text-error-500">*</span></Label>
-                  <Select
-                    options={categoryOptions}
-                    placeholder={isLoadingCategories ? "جاري التحميل..." : "اختر الفئة"}
-                    onChange={setCategoryId}
-                    defaultValue={categoryId}
-                    className="dark:bg-dark-900"
-                  />
+                  <Select options={categoryOptions} placeholder={isLoadingCategories ? "جاري التحميل..." : "اختر الفئة"} onChange={setCategoryId} defaultValue={categoryId}
+                  className="dark:bg-dark-900" />
                 </div>
 
                 <div>
                   <Label>رمز بلد المنشأ</Label>
-                  <input
-                    type="text"
-                    placeholder="مثال: SA"
-                    value={countryOfOriginCode}
-                    onChange={(e) => setCountryOfOriginCode(e.target.value)}
-                    className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-                  />
+                  <input type="text" placeholder="مثال: SA" value={countryOfOriginCode} onChange={(e) => setCountryOfOriginCode(e.target.value)}
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400
+                  focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90
+                  dark:placeholder:text-white/30 dark:focus:border-brand-800" />
                 </div>
 
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <Checkbox
-                      checked={isOrganic}
-                      onChange={setIsOrganic}
-                    />
+                    <Checkbox checked={isOrganic} onChange={setIsOrganic} />
                     <Label className="font-normal">منتج عضوي</Label>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Checkbox
-                      checked={isLocalSaudiProduct}
-                      onChange={setIsLocalSaudiProduct}
-                    />
+                    <Checkbox checked={isLocalSaudiProduct} onChange={setIsLocalSaudiProduct} />
                     <Label className="font-normal">منتج سعودي محلي</Label>
                   </div>
                 </div>
 
                 <div>
                   <Label>SKU</Label>
-                  <input
-                    type="text"
-                    placeholder="SKU"
-                    value={sku}
-                    onChange={(e) => setSku(e.target.value)}
-                    className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-                  />
-                </div>
-
-                <div>
-                  <Label>البائع (seller_user_id) <span className="text-error-500">*</span></Label>
-                  <Select
-                    key={`wholesalers-${wholesalerUsers.length}-${sellerUserId}`}
-                    options={wholesalerUsers.map((u) => ({
-                      value: u.user_id,
-                      label: `${u.first_name} ${u.last_name}`.trim() || u.phone_number || u.user_id,
-                    }))}
-                    placeholder={isLoadingWholesalers ? "جاري التحميل..." : "اختر البائع (تاجر جملة)"}
-                    onChange={setSellerUserId}
-                    defaultValue={sellerUserId}
-                    className="dark:bg-dark-900"
-                  />
+                  <input type="text" placeholder="SKU" value={sku} onChange={(e) => setSku(e.target.value)} className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5
+                  text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700
+                  dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800" />
                 </div>
 
                 <div>
                   <Label>حالة المنتج <span className="text-error-500">*</span></Label>
-                  <Select
-                    options={statusOptions}
-                    placeholder="اختر الحالة"
-                    onChange={setProductStatusId}
-                    defaultValue={productStatusId}
-                    className="dark:bg-dark-900"
-                  />
+                  <Select options={statusOptions} placeholder="اختر الحالة" onChange={setProductStatusId} defaultValue={productStatusId} className="dark:bg-dark-900" />
                 </div>
               </div>
             </div>
 
             <div className="mt-6 flex items-center gap-3 px-2">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={isSubmitting}
-                className="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-medium transition bg-white text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/3 dark:hover:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button type="button" onClick={onClose} disabled={isSubmitting} className="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-medium transition
+              bg-white text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/3
+              dark:hover:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">
                 إلغاء
               </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-3 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600 disabled:bg-brand-300 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button type="submit" disabled={isSubmitting} className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-3 text-sm font-medium text-white
+              shadow-theme-xs transition hover:bg-brand-600 disabled:bg-brand-300 disabled:opacity-50 disabled:cursor-not-allowed">
                 {isSubmitting ? "جاري الحفظ..." : "حفظ التغييرات"}
               </button>
             </div>

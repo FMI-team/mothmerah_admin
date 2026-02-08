@@ -1,24 +1,19 @@
 /* eslint-disable @next/next/no-img-element */
 /* eslint-disable react-hooks/exhaustive-deps */
+
 "use client";
+
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { MoreDotIcon, DownloadIcon, ArrowUpIcon, PlusIcon } from "@/icons";
+import { MoreDotIcon, ArrowUpIcon, PlusIcon } from "@/icons";
 import Badge from "../ui/badge/Badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../ui/table";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
-import { getAuthHeader } from "../../../services/auth";
 import Button from "../ui/button/Button";
 import CreateProductForm from "./CreateProductForm";
 import EditProductForm from "./EditProductForm";
-
+import { deleteProduct, readMyProdcuts } from "../../../services/products";
 
 interface ApiTranslation {
   language_code: string;
@@ -118,20 +113,12 @@ const formatAddedDate = (dateString: string): string => {
 };
 
 const mapApiProductToProduct = (api: ApiProduct): Product => {
-  const arTranslation = api.translations?.find(
-    (t) => t.language_code === "ar"
-  );
-  const arCategory = api.category?.translations?.find(
-    (t) => t.language_code === "ar"
-  );
-  const defaultPackaging =
-    api.packaging_options?.find((p) => p.is_default_option) ??
-    api.packaging_options?.[0];
+  const arTranslation = api.translations?.find((t) => t.language_code === "ar");
+  const arCategory = api.category?.translations?.find((t) => t.language_code === "ar");
+  const defaultPackaging = api.packaging_options?.find((p) => p.is_default_option) ?? api.packaging_options?.[0];
 
-  const availableQuantity = defaultPackaging
-    ? `${defaultPackaging.quantity_in_packaging} ${defaultPackaging.unit_of_measure?.unit_abbreviation_key ?? ""
-      }`.trim()
-    : `1 ${api.unit_of_measure?.unit_abbreviation_key ?? ""}`.trim();
+  const availableQuantity = defaultPackaging ? `${defaultPackaging.quantity_in_packaging} ${defaultPackaging.unit_of_measure?.unit_abbreviation_key ?? ""}`.trim()
+  : `1 ${api.unit_of_measure?.unit_abbreviation_key ?? ""}`.trim();
 
   let status: Product["status"];
   switch (api.status?.status_name_key) {
@@ -154,13 +141,9 @@ const mapApiProductToProduct = (api: ApiProduct): Product => {
 
   return {
     id: api.product_id,
-    name:
-      arTranslation?.translated_product_name ??
-      api.category?.category_name_key ??
-      "منتج",
+    name: arTranslation?.translated_product_name ?? api.category?.category_name_key ?? "منتج",
     imageUrl: api.main_image_url ?? "",
-    category:
-      arCategory?.translated_category_name ?? api.category?.category_name_key ?? "غير محدد",
+    category: arCategory?.translated_category_name ?? api.category?.category_name_key ?? "غير محدد",
     owner: "مزارع",
     availableQuantity,
     saleType,
@@ -191,30 +174,13 @@ export default function WholesalerProductsPage() {
     setDeletingProductId(productId);
     setError(null);
     try {
-      const authHeader = getAuthHeader();
-      const response = await fetch(
-        `https://api-testing.mothmerah.sa/api/v1/products/${productId}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeader,
-          },
-        }
-      );
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        const msg =
-          (typeof errData?.message === "string" ? errData.message : null) ||
-          (typeof errData?.detail === "string" ? errData.detail : null) ||
-          "فشل في حذف المنتج";
-        throw new Error(msg);
+      const response = await deleteProduct(productId)
+      if (response.status !== 200) {
+        throw new Error("فشل في حذف المنتج");
       }
       await fetchProducts();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "حدث خطأ في حذف المنتج"
-      );
+      setError(err instanceof Error ? err.message : "حدث خطأ في حذف المنتج");
     } finally {
       setDeletingProductId(null);
     }
@@ -225,28 +191,18 @@ export default function WholesalerProductsPage() {
     setError(null);
 
     try {
-      const authHeader = getAuthHeader();
-      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/products/me", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeader,
-        },
-      });
+      const response = await readMyProdcuts()
 
-      if (!response.ok) {
+      if (response.status !== 200) {
         throw new Error("فشل في جلب المنتجات");
       }
 
-      const data: ApiProduct[] = await response.json();
+      const data: ApiProduct[] = response.data;
       const list = data || [];
       setApiProducts(list);
       setProducts(list.map(mapApiProductToProduct));
     } catch (err) {
-      console.error("Error fetching products:", err);
-      setError(
-        err instanceof Error ? err.message : "حدث خطأ في جلب بيانات المنتجات"
-      );
+      setError(err instanceof Error ? err.message : "حدث خطأ في جلب بيانات المنتجات");
     } finally {
       setIsLoading(false);
     }
@@ -257,10 +213,7 @@ export default function WholesalerProductsPage() {
   }, [fetchProducts]);
 
   const totalItems = products.length;
-  const paginatedProducts = products.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const paginatedProducts = products.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const getStatusBadgeColor = (
     status: Product["status"]
@@ -281,33 +234,6 @@ export default function WholesalerProductsPage() {
       default:
         return "primary";
     }
-  };
-
-  const handleExportCSV = () => {
-    const csvContent = [
-      ["اسم المنتج", "الفئة", "المالك", "الكمية المتاحة", "نوع البيع", "الحالة", "تاريخ الاضافة"],
-      ...products.map((product) => [
-        product.name,
-        product.category,
-        product.owner,
-        product.availableQuantity,
-        product.saleType,
-        product.status,
-        product.addedDate,
-      ]),
-    ]
-      .map((row) => row.join(","))
-      .join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `products_catalog_${new Date().getTime()}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   const totalProductsCount = products.length;
@@ -353,28 +279,17 @@ export default function WholesalerProductsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
-          ادارة كتالوج المنتجات
-        </h1>
-        <p className="mt-2 text-gray-500 dark:text-gray-400">
-          ادارة كتالوج المنتجات وحالاتها ونوعها
-        </p>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">ادارة كتالوج المنتجات</h1>
+        <p className="mt-2 text-gray-500 dark:text-gray-400">ادارة كتالوج المنتجات وحالاتها ونوعها</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {statisticsCards.map((card, index) => (
-          <div
-            key={index}
-            className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 sm:p-6"
-          >
+          <div key={index} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {card.title}
-                </p>
-                <p className="mt-2 text-2xl font-bold text-gray-800 dark:text-white/90">
-                  {card.value}
-                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{card.title}</p>
+                <p className="mt-2 text-2xl font-bold text-gray-800 dark:text-white/90">{card.value}</p>
               </div>
             </div>
             <div className="mt-4 flex items-center gap-1 text-sm text-success-600 dark:text-success-500">
@@ -387,22 +302,10 @@ export default function WholesalerProductsPage() {
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/3 sm:px-6">
         <div className="mb-4 flex items-center justify-between">
-          <Button
-            size="sm"
-            className="bg-purple-500 hover:bg-purple-600"
-            onClick={() => setIsCreateProductModalOpen(true)}
-          >
+          <Button size="sm" className="bg-purple-500 hover:bg-purple-600" onClick={() => setIsCreateProductModalOpen(true)}>
             <PlusIcon className="w-4 h-4 ml-2" />
             إنشاء منتج جديد
           </Button>
-          <button
-            onClick={handleExportCSV}
-            className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50
-            dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-          >
-            <DownloadIcon className="w-4 h-4 inline-block ml-2" />
-            تصدير ك CSV
-          </button>
         </div>
 
         {error && (
@@ -412,82 +315,32 @@ export default function WholesalerProductsPage() {
         )}
 
         {isLoading ? (
-          <div className="flex items-center justify-center py-10 text-sm text-gray-500 dark:text-gray-400">
-            جاري تحميل المنتجات...
-          </div>
+          <div className="flex items-center justify-center py-10 text-sm text-gray-500 dark:text-gray-400">جاري تحميل المنتجات...</div>
         ) : products.length === 0 ? (
-          <div className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-            لا توجد منتجات متاحة حاليا
-          </div>
+          <div className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">لا توجد منتجات متاحة حاليا</div>
         ) : (
           <div className="max-w-full overflow-x-auto">
             <Table>
               <TableHeader className="border-gray-100 dark:border-gray-800 border-y">
                 <TableRow>
-                  <TableCell
-                    isHeader
-                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  >
-                    <div className="flex items-center gap-3">
-                      صورة المنتج
-                    </div>
+                  <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
+                    <div className="flex items-center gap-3">صورة المنتج</div>
                   </TableCell>
-                  <TableCell
-                    isHeader
-                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  >
-                    اسم المنتج
+                  <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">اسم المنتج
                   </TableCell>
-                  <TableCell
-                    isHeader
-                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  >
-                    الفئة
+                  <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">الفئة</TableCell>
+                  <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">المالك
                   </TableCell>
-                  <TableCell
-                    isHeader
-                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  >
-                    المالك
-                  </TableCell>
-                  <TableCell
-                    isHeader
-                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  >
-                    الكمية المتاحة
-                  </TableCell>
-                  <TableCell
-                    isHeader
-                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  >
-                    نوع البيع
-                  </TableCell>
-                  <TableCell
-                    isHeader
-                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  >
-                    الحالة
-                  </TableCell>
-                  <TableCell
-                    isHeader
-                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  >
-                    تاريخ الاضافة
-                  </TableCell>
-                  <TableCell
-                    isHeader
-                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  >
-                    الاجراءات
-                  </TableCell>
+                  <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">الكمية المتاحة</TableCell>
+                  <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">نوع البيع</TableCell>
+                  <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">الحالة</TableCell>
+                  <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">تاريخ الاضافة</TableCell>
+                  <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">الاجراءات</TableCell>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {paginatedProducts.map((product) => (
-                  <TableRow
-                    key={product.id}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                  >
+                  <TableRow key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                     <TableCell className="py-3">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 overflow-hidden rounded-lg bg-gray-100">
@@ -499,78 +352,46 @@ export default function WholesalerProductsPage() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                      {product.name}
-                    </TableCell>
-                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                      {product.category}
-                    </TableCell>
-                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                      {product.owner}
-                    </TableCell>
-                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                      {product.availableQuantity}
-                    </TableCell>
-                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                      {product.saleType}
-                    </TableCell>
+                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">{product.name}</TableCell>
+                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">{product.category}</TableCell>
+                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">{product.owner}</TableCell>
+                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">{product.availableQuantity}</TableCell>
+                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">{product.saleType}</TableCell>
                     <TableCell className="py-3">
-                      <Badge size="sm" color={getStatusBadgeColor(product.status)}>
-                        {product.status}
-                      </Badge>
+                      <Badge size="sm" color={getStatusBadgeColor(product.status)}>{product.status}</Badge>
                     </TableCell>
-                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                      {product.addedDate}
-                    </TableCell>
+                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">{product.addedDate}</TableCell>
                     <TableCell className="py-3">
                       <div className="relative">
-                        <button
-                          onClick={() =>
-                            setActionDropdownOpen(
-                              actionDropdownOpen === product.id ? null : product.id
-                            )
-                          }
-                          className="p-1.5 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-                        >
+                        <button onClick={() =>
+                            setActionDropdownOpen(actionDropdownOpen === product.id ? null : product.id)
+                          }className="p-1.5 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800">
                           <MoreDotIcon className="w-5 h-5" />
                         </button>
-                        <Dropdown
-                          isOpen={actionDropdownOpen === product.id}
-                          onClose={() => setActionDropdownOpen(null)}
-                          className="absolute left-0 mt-2 w-40 p-2 z-50"
-                        >
-                          <DropdownItem
-                            onItemClick={() => {
+                        <Dropdown isOpen={actionDropdownOpen === product.id} onClose={() => setActionDropdownOpen(null)} className="absolute left-0 mt-2 w-40 p-2 z-50">
+                          <DropdownItem onItemClick={() => {
                               setActionDropdownOpen(null);
                               router.push(`${pathname}/${product.id}`);
-                            }}
-                            className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5
-                            dark:hover:text-gray-300"
-                          >
+                            }} className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5
+                            dark:hover:text-gray-300">
                             عرض التفاصيل
                           </DropdownItem>
-                          <DropdownItem
-                            onItemClick={() => {
+                          <DropdownItem onItemClick={() => {
                               setActionDropdownOpen(null);
                               const apiProduct = apiProducts.find((p) => p.product_id === product.id);
                               if (apiProduct) {
                                 setEditingProduct(apiProduct);
                                 setIsEditProductModalOpen(true);
                               }
-                            }}
-                            className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5
-                            dark:hover:text-gray-300"
-                          >
+                            }} className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5
+                            dark:hover:text-gray-300">
                             تعديل
                           </DropdownItem>
-                          <DropdownItem
-                            onItemClick={() => {
+                          <DropdownItem onItemClick={() => {
                               setActionDropdownOpen(null);
                               handleDeleteProduct(product.id);
-                            }}
-                            className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5
-                            dark:hover:text-red-300"
-                          >
+                            }} className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5
+                            dark:hover:text-red-300">
                             {deletingProductId === product.id ? "جاري الحذف..." : "حذف"}
                           </DropdownItem>
                         </Dropdown>
@@ -590,34 +411,21 @@ export default function WholesalerProductsPage() {
               {Math.min(currentPage * itemsPerPage, totalItems)} من {totalItems}
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed
-                dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-              >
+              <button onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm
+              text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300
+              dark:hover:bg-gray-700">
                 السابق
               </button>
-              {Array.from({ length: Math.ceil(totalItems / itemsPerPage) }, (_, i) => i + 1)
-                .slice(0, 5)
-                .map((page) => (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${currentPage === page
-                      ? "bg-purple-500 text-white"
-                      : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                      }`}
-                  >
+              {Array.from({ length: Math.ceil(totalItems / itemsPerPage) }, (_, i) => i + 1).slice(0, 5).map((page) => (
+                  <button key={page} onClick={() => setCurrentPage(page)} className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${currentPage === page
+                    ? "bg-purple-500 text-white"
+                    : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"}`}>
                     {page}
                   </button>
                 ))}
-              <button
-                onClick={() => setCurrentPage((prev) => Math.min(Math.ceil(totalItems / itemsPerPage), prev + 1))}
-                disabled={currentPage >= Math.ceil(totalItems / itemsPerPage)}
-                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed
-                dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-              >
+              <button onClick={() => setCurrentPage((prev) => Math.min(Math.ceil(totalItems / itemsPerPage), prev + 1))} disabled={currentPage >= Math.ceil(totalItems / itemsPerPage)}
+              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed
+                dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
                 التالي
               </button>
             </div>
@@ -625,10 +433,7 @@ export default function WholesalerProductsPage() {
         )}
       </div>
 
-      <CreateProductForm
-        isOpen={isCreateProductModalOpen}
-        onClose={() => setIsCreateProductModalOpen(false)}
-        onSuccess={async (createdProduct) => {
+      <CreateProductForm isOpen={isCreateProductModalOpen} onClose={() => setIsCreateProductModalOpen(false)} onSuccess={async (createdProduct) => {
           await fetchProducts();
           if (createdProduct) {
             const mapped = mapApiProductToProduct(createdProduct as ApiProduct);
@@ -640,14 +445,10 @@ export default function WholesalerProductsPage() {
         }}
       />
 
-      <EditProductForm
-        key={editingProduct?.product_id ?? "edit-form"}
-        isOpen={isEditProductModalOpen}
-        onClose={() => {
+      <EditProductForm key={editingProduct?.product_id ?? "edit-form"} isOpen={isEditProductModalOpen} onClose={() => {
           setIsEditProductModalOpen(false);
           setEditingProduct(null);
-        }}
-        onSuccess={() => {
+        }} onSuccess={() => {
           fetchProducts();
         }}
         product={editingProduct}

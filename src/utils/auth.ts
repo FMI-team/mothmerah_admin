@@ -17,6 +17,7 @@ export const removeToken = () => {
     Cookies.remove('refresh_token');
     Cookies.remove('token_type');
     Cookies.remove('expires_at');
+    Cookies.remove('user_type');
 };
 
 export const setRole = (role: string) => {
