@@ -37,7 +37,7 @@ export default function SignInForm() {
       setIsLoading(true)
       await login(user)
       const userInfo = await fetchAndStoreUserInfo()
-      setRole(userInfo.user_type.user_type_name_key)
+      setRole(userInfo.data.user_type.user_type_name_key)
       if (getRole() === 'BASE_USER') {
         router.push('/base-user')
       }

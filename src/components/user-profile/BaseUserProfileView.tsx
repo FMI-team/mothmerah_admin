@@ -1,14 +1,13 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import { getAuthHeader } from "../../../services/auth";
+
+import { useState, useEffect } from "react";
 import UserMetaCard from "./UserMetaCard";
 import UserInfoCard from "./UserInfoCard";
 import UserAddressCard from "./UserAddressCard";
-import { useTranslations } from "@/lib/translations";
 import { UserDetails } from "./UserProfileView";
+import { fetchAndStoreUserInfo, logout, updateUserInfo } from "../../../services/auth";
 
 export default function BaseUserProfileView() {
-  const { t } = useTranslations('ar');
   const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,24 +19,16 @@ export default function BaseUserProfileView() {
       setError(null);
 
       try {
-        const authHeader = getAuthHeader();
-
-        const meResponse = await fetch(
-          "https://api-testing.mothmerah.sa/api/v1/users/me",
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              ...authHeader,
-            },
-          }
-        );
-
-        if (!meResponse.ok) {
+        const response = await fetchAndStoreUserInfo()
+        if (response.status !== 200) {
           throw new Error("فشل في جلب معلومات المستخدم الحالي");
         }
 
-        const userData: UserDetails = await meResponse.json();
+        if ((response.status as number) === 401) {
+          logout();
+        }
+
+        const userData: UserDetails = response.data;
         setUserDetails(userData);
       } catch (err) {
         console.error("Error fetching user details:", err);
@@ -57,34 +48,27 @@ export default function BaseUserProfileView() {
       setIsSaving(true);
       setError(null);
 
-      const authHeader = getAuthHeader();
-      const response = await fetch(
-        "https://api-testing.mothmerah.sa/api/v1/users/me",
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeader,
-          },
-          body: JSON.stringify({
-            first_name: updated.first_name ?? userDetails?.first_name,
-            last_name: updated.last_name ?? userDetails?.last_name,
-            email: updated.email ?? userDetails?.email,
-            phone_number: updated.phone_number ?? userDetails?.phone_number,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(t("users.profile.errors.updateFailed") || "فشل في تحديث بيانات المستخدم");
+      const body = {
+        first_name: updated.first_name ?? userDetails?.first_name ?? "",
+        last_name: updated.last_name ?? userDetails?.last_name ?? "",
+        email: updated.email ?? userDetails?.email ?? "",
+        phone_number: updated.phone_number ?? userDetails?.phone_number ?? "",
       }
 
-      const data: UserDetails = await response.json();
+      console.log(body);
+
+      const response = await updateUserInfo(body);
+
+      if (response.status !== 200) {
+        throw new Error("فشل في تحديث بيانات المستخدم");
+      }
+
+      const data: UserDetails = response.data;
       setUserDetails(data);
     } catch (err) {
       console.error("Error updating user details:", err);
       setError(
-        err instanceof Error ? err.message : (t("users.profile.errors.updateError") || "حدث خطأ في تحديث بيانات المستخدم")
+        err instanceof Error ? err.message : "حدث خطأ في تحديث بيانات المستخدم"
       );
     } finally {
       setIsSaving(false);
@@ -95,7 +79,7 @@ export default function BaseUserProfileView() {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-gray-500 dark:text-gray-400">
-          {t("users.profile.loading") || "جاري التحميل..."}
+          جاري التحميل...
         </div>
       </div>
     );
@@ -112,7 +96,7 @@ export default function BaseUserProfileView() {
   if (!userDetails) {
     return (
       <div className="p-4 text-sm text-gray-500 dark:text-gray-400">
-        {t("users.profile.noData") || "لا توجد بيانات متاحة"}
+        لا توجد بيانات متاحة
       </div>
     );
   }
@@ -120,10 +104,7 @@ export default function BaseUserProfileView() {
   return (
     <div className="space-y-6">
       <UserMetaCard userDetails={userDetails} />
-      <UserInfoCard
-        userDetails={userDetails}
-        onEditSave={handleSaveInfo}
-      />
+      <UserInfoCard userDetails={userDetails} onEditSave={handleSaveInfo} />
       <UserAddressCard userDetails={userDetails} />
     </div>
   );

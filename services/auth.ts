@@ -8,7 +8,12 @@ export async function login(user: { phone_number: string, password: string }) {
 
 export async function fetchAndStoreUserInfo() {
   const response = await api.get("api/v1/users/me")
-  return response.data;
+  return response;
+}
+
+export async function updateUserInfo(data: { first_name: string, last_name: string, email: string, phone_number: string }) {
+  const response = await api.patch("api/v1/users/me", data)
+  return response;
 }
 
 export function logout(redirectTo: string = "/signin"): void {

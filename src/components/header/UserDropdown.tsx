@@ -23,23 +23,7 @@ export default function UserDropdown() {
           return;
         }
 
-        const email: string | undefined = userInfo.email;
-        const firstName: string | undefined = userInfo.first_name;
-        const lastName: string | undefined = userInfo.last_name;
-
-        let fullName: string | undefined = userInfo.full_name;
-        if (!fullName) {
-          fullName = [firstName, lastName].filter(Boolean).join(" ");
-        }
-        if (!fullName && email) {
-          fullName = email.split("@")[0];
-        }
-
-        setUser({
-          fullName,
-          email,
-          user_type: userInfo.user_type,
-        });
+        setUser(userInfo.data);
       } catch (err) {
         console.error("Error fetching current user:", err);
       }
@@ -47,17 +31,7 @@ export default function UserDropdown() {
 
     fetchCurrentUser();
 
-    const type = user?.user_type;
-    if (type) {
-    }
   }, []);
-
-  const getProfilePath = () => {
-    if (user?.user_type === "base_user") {
-      return "/base-user/profile";
-    }
-    return "/profile";
-  };
 
   function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
     e.stopPropagation();
@@ -75,7 +49,7 @@ export default function UserDropdown() {
       >
 
         <span className="block mr-1 font-medium text-theme-sm">
-          {user?.fullName || "مسؤول النظام"}
+          {user?.email || "مسؤول النظام"}
         </span>
 
         <svg
@@ -104,10 +78,10 @@ export default function UserDropdown() {
       >
         <div>
           <span className="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">
-            {user?.fullName || "مسؤول النظام"}
+            {user?.email || "مسؤول النظام"}
           </span>
           <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400">
-            {user?.email || "admin@example.com"}
+            {user?.user_type || "مسؤول النظام"}
           </span>
         </div>
 
@@ -116,7 +90,7 @@ export default function UserDropdown() {
             <DropdownItem
               onItemClick={closeDropdown}
               tag="a"
-              href={getProfilePath()}
+              href="/profile"
               className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <svg

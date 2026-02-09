@@ -24,3 +24,8 @@ export async function createProduct(data: FormData) {
     const response = await api.post("api/v1/products/", data);
     return response;
 }
+
+export async function readAllProducts() {
+    const response = await api.get("api/v1/products/")
+    return response
+}

@@ -237,7 +237,7 @@ export default function CreateProductForm({
 
       const response = await createProduct(form);
 
-      if (response.status !== 200) {
+      if (response.status !== 201) {
         throw new Error("فشل في إنشاء المنتج");
       }
 

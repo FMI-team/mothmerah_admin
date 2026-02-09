@@ -26,7 +26,22 @@ export async function readAuctionById(auctionId: string) {
   return response;
 }
 
+export async function updateAuctionById(auctionId: string, data:unknown) {
+  const response = await api.patch(`api/v1/auctions/${auctionId}`, data);
+  return response;
+}
+
 export async function deleteAuctionById(auctionId: string) {
-    const response = await api.delete(`api/v1/auctions/${auctionId}`)
-    return response.data
+  const response = await api.delete(`api/v1/auctions/${auctionId}`)
+  return response
+}
+
+export async function readMyAuction() {
+  const response = await api.get('api/v1/auctions/me/created')
+  return response
+}
+
+export async function createAuction(data: unknown) {
+  const response = await api.post('api/v1/auctions/', data)
+  return response
 }

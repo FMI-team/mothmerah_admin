@@ -1,12 +1,11 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 "use client";
-import React, { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
-import { getAuthHeader } from "../../../services/auth";
+
+import { useState, useEffect } from "react";
 import UserMetaCard from "./UserMetaCard";
 import UserInfoCard from "./UserInfoCard";
 import UserAddressCard from "./UserAddressCard";
-import { useTranslations } from "@/lib/translations";
+import { fetchAndStoreUserInfo, logout, updateUserInfo } from "../../../services/auth";
+import { AxiosError } from "axios";
 
 interface Translation {
   language_code: string;
@@ -84,48 +83,30 @@ export interface UserDetails {
 }
 
 export default function UserProfileView() {
-  const searchParams = useSearchParams();
-  const { t } = useTranslations('ar');
-  const userId = searchParams.get("userId");
   const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUserDetails = async () => {
-      if (!userId) {
-        setError(t("users.profile.errors.userIdMissing"));
-        setIsLoading(false);
-        return;
-      }
-
       setIsLoading(true);
       setError(null);
 
       try {
-        const authHeader = getAuthHeader();
-        const response = await fetch(
-          `https://api-testing.mothmerah.sa/admin/users/${userId}`,
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              ...authHeader,
-            },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(t("users.profile.errors.fetchFailed"));
+        const response = await fetchAndStoreUserInfo();
+        if ((response.status as number) === 401) {
+          logout();
         }
 
-        const data: UserDetails = await response.json();
+        if (response.status !== 200) {
+          throw new Error("فشل في جلب بيانات المستخدم");
+        }
+
+        const data: UserDetails = response.data;
         setUserDetails(data);
       } catch (err) {
-        console.error("Error fetching user details:", err);
-        setError(
-          err instanceof Error ? err.message : t("users.profile.errors.fetchError")
-        );
+        const axiosErr = err as AxiosError<{ message?: string }>;
+        setError(axiosErr.response?.data?.message ?? (err instanceof Error ? err.message : "حدث خطأ في جلب بيانات المستخدم"));
       } finally {
         setIsLoading(false);
       }
@@ -134,11 +115,35 @@ export default function UserProfileView() {
     fetchUserDetails();
   }, []);
 
+  const handleSaveInfo = async (updated: Partial<UserDetails>) => {
+    try {
+      setError(null);
+
+      const body = {
+        first_name: updated.first_name ?? userDetails?.first_name ?? "",
+        last_name: updated.last_name ?? userDetails?.last_name ?? "",
+        email: updated.email ?? userDetails?.email ?? "",
+        phone_number: updated.phone_number ?? userDetails?.phone_number ?? "",
+      };
+
+      const response = await updateUserInfo(body);
+
+      if (response.status !== 200) {
+        throw new Error("فشل في تحديث بيانات المستخدم");
+      }
+
+      const data: UserDetails = response.data;
+      setUserDetails(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "حدث خطأ في تحديث بيانات المستخدم");
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-gray-500 dark:text-gray-400">
-          {t("users.profile.loading")}
+          جاري التحميل...
         </div>
       </div>
     );
@@ -155,7 +160,7 @@ export default function UserProfileView() {
   if (!userDetails) {
     return (
       <div className="p-4 text-sm text-gray-500 dark:text-gray-400">
-        {t("users.profile.noData")}
+        لا يوجد بيانات
       </div>
     );
   }
@@ -163,7 +168,7 @@ export default function UserProfileView() {
   return (
     <div className="space-y-6">
       <UserMetaCard userDetails={userDetails} />
-      <UserInfoCard userDetails={userDetails} />
+      <UserInfoCard userDetails={userDetails} onEditSave={handleSaveInfo} />
       <UserAddressCard userDetails={userDetails} />
     </div>
   );

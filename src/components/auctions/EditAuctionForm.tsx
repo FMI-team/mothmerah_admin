@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, SubmitEvent } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
-import { getAuthHeader } from "../../../services/auth";
 import Label from "../form/Label";
 import { ChevronLeftIcon } from "@/icons";
+import { readAuctionById, updateAuctionById } from "../../../services/auctions";
+import { AxiosError } from "axios";
 
 const AUCTION_TYPES = [
   { auction_type_id: 1, type_name_key: "STANDARD_ENGLISH_AUCTION", label: "مزاد إنجليزي قياسي" },
@@ -49,9 +50,9 @@ export default function EditAuctionForm() {
 
   const [auction, setAuction] = useState<ApiAuction | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
+  const [customAuctionTitle, setCustomAuctionTitle] = useState<string>("");
   const [auctionTypeId, setAuctionTypeId] = useState<string>("1");
   const [auctionStatusId, setAuctionStatusId] = useState<string>("");
   const [startTimestamp, setStartTimestamp] = useState<string>("");
@@ -64,28 +65,22 @@ export default function EditAuctionForm() {
     setIsLoading(true);
     setError(null);
     try {
-      const authHeader = getAuthHeader();
-      const response = await fetch(
-        `https://api-testing.mothmerah.sa/api/v1/auctions/${auctionId}`,
-        {
-          method: "GET",
-          headers: { "Content-Type": "application/json", ...authHeader },
-        }
-      );
-      if (!response.ok) {
+      const response = await readAuctionById(auctionId)
+      if (response.status !== 200) {
         if (response.status === 404) throw new Error("المزاد غير موجود");
         throw new Error("فشل في جلب تفاصيل المزاد");
       }
-      const data: ApiAuction = await response.json();
+      const data: ApiAuction = await response.data;
       setAuction(data);
+      setCustomAuctionTitle(data.custom_auction_title ?? "");
       setAuctionTypeId(String(data.auction_type_id));
       setAuctionStatusId(String(data.auction_status_id));
       setStartTimestamp(toDatetimeLocal(data.start_timestamp));
       setEndTimestamp(toDatetimeLocal(data.end_timestamp));
       setStartingPricePerUnit(String(data.starting_price_per_unit));
       setMinimumBidIncrement(String(data.minimum_bid_increment));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "حدث خطأ في جلب المزاد");
+    } catch (error) {
+      setError((error as AxiosError)?.response?.data?.detail);
     } finally {
       setIsLoading(false);
     }
@@ -95,45 +90,34 @@ export default function EditAuctionForm() {
     fetchAuction();
   }, [fetchAuction]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!auctionId || !auction) return;
 
     const start = startTimestamp ? new Date(startTimestamp).toISOString() : auction.start_timestamp;
     const end = endTimestamp ? new Date(endTimestamp).toISOString() : auction.end_timestamp;
     const body = {
-      seller_user_id: auction.seller_user_id,
-      product_id: auction.product_id,
-      auction_type_id: parseInt(auctionTypeId, 10) || 1,
-      auction_status_id: parseInt(auctionStatusId, 10) || 1,
+      ...auction,
+      custom_auction_title: customAuctionTitle || auction.custom_auction_title,
+      auction_type_id: parseInt(auctionTypeId, 10) || auction.auction_type_id || 1,
+      auction_status_id: parseInt(auctionStatusId, 10) || auction.auction_status_id || 1,
       start_timestamp: start,
       end_timestamp: end,
-      starting_price_per_unit: parseFloat(startingPricePerUnit) || 0,
-      minimum_bid_increment: parseFloat(minimumBidIncrement) || 0,
+      starting_price_per_unit: startingPricePerUnit !== "" ? parseFloat(startingPricePerUnit) || 0 : auction.starting_price_per_unit,
+      minimum_bid_increment: minimumBidIncrement !== "" ? parseFloat(minimumBidIncrement) || 0 : auction.minimum_bid_increment
     };
 
     setIsSubmitting(true);
     setError(null);
     try {
-      const authHeader = getAuthHeader();
-      const response = await fetch(
-        `https://api-testing.mothmerah.sa/api/v1/auctions/${auctionId}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", ...authHeader },
-          body: JSON.stringify(body),
-        }
-      );
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(
-          (errData as { detail?: string })?.detail || "فشل في تحديث المزاد"
-        );
+      const response = await updateAuctionById(auctionId, body)
+      if (response.status !== 200) {
+        throw new Error("فشل في تحديث المزاد");
       }
       const basePath = pathname?.replace(/\/edit$/, "") || "";
       router.push(basePath ? `${basePath}` : `/wholesaler/auctions/${auctionId}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "حدث خطأ في التحديث");
+    } catch (error) {
+      setError((error as AxiosError)?.response?.data?.detail);
     } finally {
       setIsSubmitting(false);
     }
@@ -153,16 +137,11 @@ export default function EditAuctionForm() {
   if (error && !auction) {
     return (
       <div className="space-y-4">
-        <button
-          onClick={() => router.back()}
-          className="inline-flex items-center gap-2 p-2 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-        >
+        <button onClick={() => router.back()} className="inline-flex items-center gap-2 p-2 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800">
           <ChevronLeftIcon className="w-5 h-5" />
           رجوع
         </button>
-        <div className="p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800">
-          {error}
-        </div>
+        <div className="p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800">{error}</div>
       </div>
     );
   }
@@ -170,58 +149,43 @@ export default function EditAuctionForm() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <button
-          onClick={() => router.push(detailPath)}
-          className="p-2 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-        >
+        <button onClick={() => router.push(detailPath)} className="p-2 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800">
           <ChevronLeftIcon className="w-5 h-5" />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
-            تعديل المزاد
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {auction?.custom_auction_title || "بدون عنوان"}
-          </p>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">تعديل المزاد</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{auction?.custom_auction_title || "بدون عنوان"}</p>
         </div>
       </div>
 
       {error && (
-        <div className="p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800">
-          {error}
-        </div>
+        <div className="p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800">{error}</div>
       )}
 
       <form onSubmit={handleSubmit} className="max-w-2xl space-y-6">
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           <div>
+            <Label htmlFor="custom_auction_title">عنوان المزاد</Label>
+            <input id="custom_auction_title" type="text" value={customAuctionTitle} onChange={(e) => setCustomAuctionTitle(e.target.value)} className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800" />
+          </div>
+          <div>
             <Label htmlFor="auction_type_id">نوع المزاد</Label>
-            <select
-              id="auction_type_id"
-              value={auctionTypeId}
-              onChange={(e) => setAuctionTypeId(e.target.value)}
-              className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800"
-            >
+            <select id="auction_type_id" value={auctionTypeId} onChange={(e) => setAuctionTypeId(e.target.value)} className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4
+            py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900
+            dark:text-white/90 dark:focus:border-brand-800">
               {AUCTION_TYPES.map((t) => (
-                <option key={t.auction_type_id} value={String(t.auction_type_id)}>
-                  {t.label}
-                </option>
+                <option key={t.auction_type_id} value={String(t.auction_type_id)}>{t.label}</option>
               ))}
             </select>
           </div>
 
           <div>
             <Label htmlFor="auction_status_id">حالة المزاد</Label>
-            <select
-              id="auction_status_id"
-              value={auctionStatusId}
-              onChange={(e) => setAuctionStatusId(e.target.value)}
-              className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800"
-            >
+            <select id="auction_status_id" value={auctionStatusId} onChange={(e) => setAuctionStatusId(e.target.value)} className="h-11 w-full rounded-lg border border-gray-300 bg-transparent
+            px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900
+            dark:text-white/90 dark:focus:border-brand-800">
               {AUCTION_STATUSES.map((s) => (
-                <option key={s.auction_status_id} value={String(s.auction_status_id)}>
-                  {s.label}
-                </option>
+                <option key={s.auction_status_id} value={String(s.auction_status_id)}>{s.label}</option>
               ))}
             </select>
           </div>
@@ -230,67 +194,41 @@ export default function EditAuctionForm() {
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           <div>
             <Label htmlFor="start_timestamp">تاريخ ووقت البدء</Label>
-            <input
-              id="start_timestamp"
-              type="datetime-local"
-              value={startTimestamp}
-              onChange={(e) => setStartTimestamp(e.target.value)}
-              className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800"
-            />
+            <input id="start_timestamp" type="datetime-local" value={startTimestamp} onChange={(e) => setStartTimestamp(e.target.value)} className="h-11 w-full rounded-lg border border-gray-300
+            bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700
+            dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800" />
           </div>
           <div>
             <Label htmlFor="end_timestamp">تاريخ ووقت الانتهاء</Label>
-            <input
-              id="end_timestamp"
-              type="datetime-local"
-              value={endTimestamp}
-              onChange={(e) => setEndTimestamp(e.target.value)}
-              className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800"
-            />
+            <input id="end_timestamp" type="datetime-local" value={endTimestamp} onChange={(e) => setEndTimestamp(e.target.value)} className="h-11 w-full rounded-lg border border-gray-300
+            bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700
+            dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800" />
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           <div>
             <Label htmlFor="starting_price_per_unit">السعر الابتدائي لكل وحدة (ر.س)</Label>
-            <input
-              id="starting_price_per_unit"
-              type="number"
-              step="0.01"
-              min="0"
-              value={startingPricePerUnit}
-              onChange={(e) => setStartingPricePerUnit(e.target.value)}
-              className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800"
-            />
+            <input id="starting_price_per_unit" type="number" step="0.01" min="0" value={startingPricePerUnit} onChange={(e) => setStartingPricePerUnit(e.target.value)} className="h-11 w-full
+            rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3
+            focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800" />
           </div>
           <div>
             <Label htmlFor="minimum_bid_increment">الحد الأدنى للزيادة (ر.س)</Label>
-            <input
-              id="minimum_bid_increment"
-              type="number"
-              step="0.01"
-              min="0"
-              value={minimumBidIncrement}
-              onChange={(e) => setMinimumBidIncrement(e.target.value)}
-              className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800"
-            />
+            <input id="minimum_bid_increment" type="number" step="0.01" min="0" value={minimumBidIncrement} onChange={(e) => setMinimumBidIncrement(e.target.value)} className="h-11 w-full
+            rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3
+            focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800" />
           </div>
         </div>
 
         <div className="flex gap-3 pt-2">
-          <button
-            type="button"
-            onClick={() => router.push(detailPath)}
-            disabled={isSubmitting}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-white/3 disabled:opacity-50"
-          >
+          <button type="button" onClick={() => router.push(detailPath)} disabled={isSubmitting} className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200
+          bg-white px-4 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-white/3
+          disabled:opacity-50">
             إلغاء
           </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-3 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+          <button type="submit" disabled={isSubmitting} className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-3 text-sm font-medium text-white shadow-theme-xs
+          transition hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed">
             {isSubmitting ? "جاري الحفظ..." : "حفظ التغييرات"}
           </button>
         </div>
