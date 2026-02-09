@@ -27,6 +27,15 @@ export async function middleware(request: NextRequest) {
             return NextResponse.redirect(new URL('/signin', request.url));
         }
     }
+
+    if (pathname.startsWith('/admin')) {
+        if (!token?.value || !role?.value) {
+            return NextResponse.redirect(new URL('/signin', request.url));
+        }
+        if (role.value !== 'ADMIN') {
+            return NextResponse.redirect(new URL('/signin', request.url));
+        }
+    }
     
     return NextResponse.next();
 }

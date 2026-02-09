@@ -29,3 +29,8 @@ export async function readAllProducts() {
     const response = await api.get("api/v1/products/")
     return response
 }
+
+export async function createProductForSeller(data: unknown) {
+    const response = await api.post('admin/products/create', data)
+    return response
+}

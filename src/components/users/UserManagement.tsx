@@ -4,22 +4,16 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../ui/table";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
 import Badge from "../ui/badge/Badge";
 import { UserCircleIcon, MoreDotIcon, PlusIcon } from "@/icons";
-import { getAuthHeader } from "../../../services/auth";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Modal } from "../ui/modal";
 import Label from "../form/Label";
 import Button from "../ui/button/Button";
-import { useTranslations } from "@/lib/translations";
+import { createUser, deleteUser, readUsers, updateUserStatus } from "../../../services/users";
+import { AxiosError } from "axios";
 
 interface Translation {
   language_code: string;
@@ -110,14 +104,14 @@ const ACCOUNT_STATUSES: AccountStatusOption[] = [
   { account_status_id: 1, status_name_key: "PENDING_ACTIVATION", is_terminal: false },
   { account_status_id: 2, status_name_key: "ACTIVE", is_terminal: false },
   { account_status_id: 3, status_name_key: "SUSPENDED", is_terminal: false },
-  { account_status_id: 4, status_name_key: "DELETED", is_terminal: true },
+  { account_status_id: 4, status_name_key: "DELETED", is_terminal: true }
 ];
 
 const ACCOUNT_STATUS_LABELS: Record<string, string> = {
   PENDING_ACTIVATION: "قيد التفعيل",
   ACTIVE: "نشط",
   SUSPENDED: "معلق",
-  DELETED: "محذوف",
+  DELETED: "محذوف"
 };
 
 interface UserTypeOption {
@@ -128,13 +122,13 @@ interface UserTypeOption {
 const USER_TYPES: UserTypeOption[] = [
   { user_type_id: 1, user_type_name_key: "BASE_USER" },
   { user_type_id: 2, user_type_name_key: "WHOLESALER" },
-  { user_type_id: 3, user_type_name_key: "ADMIN" },
+  { user_type_id: 3, user_type_name_key: "ADMIN" }
 ];
 
 const USER_TYPE_LABELS: Record<string, string> = {
   BASE_USER: "مستخدم أساسي",
   WHOLESALER: "تاجر جملة",
-  ADMIN: "مسؤول",
+  ADMIN: "مسؤول"
 };
 
 interface LanguageOption {
@@ -148,7 +142,7 @@ const LANGUAGES: LanguageOption[] = [
   { code: "fr", name: "Français" },
   { code: "ur", name: "اردو" },
   { code: "hi", name: "हिन्दी" },
-  { code: "bn", name: "বাংলা" },
+  { code: "bn", name: "বাংলা" }
 ];
 
 const getArabicTranslation = (
@@ -167,8 +161,8 @@ const getAccountStatusLabel = (
   return ACCOUNT_STATUS_LABELS[status.status_name_key] || status.status_name_key;
 };
 
-const formatDate = (dateString: string | null, t: (key: string) => string): string => {
-  if (!dateString) return t("users.management.neverLoggedIn");
+const formatDate = (dateString: string | null): string => {
+  if (!dateString) return "لم يتم تسجيل الدخول";
   try {
     const date = new Date(dateString);
     return new Intl.DateTimeFormat("ar-SA", {
@@ -176,7 +170,7 @@ const formatDate = (dateString: string | null, t: (key: string) => string): stri
       month: "long",
       day: "numeric",
       hour: "2-digit",
-      minute: "2-digit",
+      minute: "2-digit"
     }).format(date);
   } catch {
     return dateString;
@@ -185,22 +179,17 @@ const formatDate = (dateString: string | null, t: (key: string) => string): stri
 
 export default function UserManagement() {
   const router = useRouter();
-  const { t } = useTranslations('ar');
+
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-  const [actionDropdownOpen, setActionDropdownOpen] = useState<string | null>(
-    null
-  );
+  const [actionDropdownOpen, setActionDropdownOpen] = useState<string | null>(null);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-  const [selectedUserForStatusChange, setSelectedUserForStatusChange] =
-    useState<User | null>(null);
+  const [selectedUserForStatusChange, setSelectedUserForStatusChange] = useState<User | null>(null);
   const [selectedStatusId, setSelectedStatusId] = useState<number | null>(null);
   const [reasonForChange, setReasonForChange] = useState("");
   const [isChangingStatus, setIsChangingStatus] = useState(false);
-
-  // Create user modal state
   const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [createUserError, setCreateUserError] = useState<string | null>(null);
@@ -217,48 +206,27 @@ export default function UserManagement() {
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-
     try {
-      const authHeader = getAuthHeader();
-
-
-      const response = await fetch(
-        `https://api-testing.mothmerah.sa/admin/users/`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeader,
-          },
-        }
-      );
-
-      if (!response.ok) {
+      const response = await readUsers()
+      if (response.status !== 200) {
         throw new Error("Failed to fetch users");
       }
-
-      const data = await response.json();
+      const data = response.data;
       setUsers(data || []);
     } catch (err) {
       console.error("Error fetching users:", err);
-      setError(
-        err instanceof Error ? err.message : t("users.management.errors.fetchFailed")
-      );
+      setError((err as AxiosError).response?.data?.message);
     } finally {
       setIsLoading(false);
     }
-  }, [t]);
+  }, []);
 
   useEffect(() => {
     fetchUsers();
   }, []);
 
   const toggleUserSelection = (userId: string) => {
-    setSelectedUsers((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
-    );
+    setSelectedUsers((prev) => prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]);
   };
 
   const toggleSelectAll = () => {
@@ -287,44 +255,24 @@ export default function UserManagement() {
   };
 
   const handleDeleteUser = async (userId: string, userName: string) => {
-    if (!confirm(`${t("users.management.delete.confirm")} "${userName}"؟`)) {
+    if (!confirm(`هل أنت متأكد من حذف المستخدم "${userName}"?`)) {
       return;
     }
 
     try {
-      const authHeader = getAuthHeader();
-      const response = await fetch(
-        `https://api-testing.mothmerah.sa/admin/users/${userId}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeader,
-          },
-        }
-      );
+      const response = await deleteUser(userId)
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.message ||
-          errorData.detail ||
-          t("users.management.delete.failed")
-        );
+      if (response.status !== 200) {
+        throw new Error((response.data as AxiosError).response?.data?.message);
       }
 
-      setUsers((prevUsers) =>
-        prevUsers.filter((user) => user.user_id !== userId)
-      );
+      setUsers((prevUsers) => prevUsers.filter((user) => user.user_id !== userId));
 
       setSelectedUsers((prev) => prev.filter((id) => id !== userId));
 
       setError(null);
     } catch (err) {
-      console.error("Error deleting user:", err);
-      setError(
-        err instanceof Error ? err.message : t("users.management.delete.error")
-      );
+      setError((err as AxiosError).response?.data?.message);
     }
   };
 
@@ -373,36 +321,16 @@ export default function UserManagement() {
     setCreateUserError(null);
 
     try {
-      const authHeader = getAuthHeader();
-      const response = await fetch("https://api-testing.mothmerah.sa/admin/users/create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeader,
-        },
-        body: JSON.stringify(newUserForm),
-      });
+      const response = await createUser(newUserForm)
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        if (errorData.detail && Array.isArray(errorData.detail)) {
-          const errorMessages = errorData.detail
-            .map((err: { msg: string }) => err.msg)
-            .join(", ");
-          throw new Error(errorMessages || "فشل في إنشاء المستخدم");
-        }
-        throw new Error(
-          errorData.message || errorData.detail || "فشل في إنشاء المستخدم"
-        );
+      if (response.status !== 200) {
+        throw new Error((response.data as AxiosError).response?.data?.message);
       }
 
       handleCloseCreateUserModal();
       await fetchUsers();
     } catch (err) {
-      console.error("Error creating user:", err);
-      setCreateUserError(
-        err instanceof Error ? err.message : "حدث خطأ في إنشاء المستخدم"
-      );
+      setCreateUserError((err as AxiosError).response?.data?.message);
     } finally {
       setIsCreatingUser(false);
     }
@@ -410,7 +338,7 @@ export default function UserManagement() {
 
   const handleChangeUserStatus = async () => {
     if (!selectedUserForStatusChange || !selectedStatusId) {
-      setError(t("users.management.errors.selectNewStatus"));
+      setError("يرجى تحديد الحالة الجديدة");
       return;
     }
 
@@ -418,51 +346,19 @@ export default function UserManagement() {
     setError(null);
 
     try {
-      const authHeader = getAuthHeader();
-      const response = await fetch(
-        `https://api-testing.mothmerah.sa/admin/users/${selectedUserForStatusChange.user_id}/status`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeader,
-          },
-          body: JSON.stringify({
-            new_status_id: selectedStatusId,
-            reason_for_change: reasonForChange || "",
-          }),
-        }
-      );
+      const response = await updateUserStatus(selectedUserForStatusChange.user_id, {new_status_id: selectedStatusId, reason_for_change: reasonForChange})
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-
-        if (errorData.detail && Array.isArray(errorData.detail)) {
-          const errorMessages = errorData.detail
-            .map((err: { msg: string; loc: string[] }) => err.msg)
-            .join(", ");
-          throw new Error(errorMessages || t("users.management.errors.changeStatusFailed"));
-        }
-
-        throw new Error(
-          errorData.message ||
-          errorData.detail ||
-          t("users.management.errors.changeStatusFailed")
-        );
+      if (response.status !== 200) {
+        throw new Error((response.data as AxiosError).response?.data?.message);
       }
 
-      const updatedUser: User = await response.json();
+      const updatedUser: User = response.data;
       setUsers((prev) =>
         prev.map((u) => (u.user_id === updatedUser.user_id ? updatedUser : u))
       );
       handleCloseStatusModal();
     } catch (err) {
-      console.error("Error changing user status:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : t("users.management.errors.changeStatusError")
-      );
+      setError((err as AxiosError).response?.data?.message);
     } finally {
       setIsChangingStatus(false);
     }
@@ -471,33 +367,23 @@ export default function UserManagement() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
-          {t("users.management.title")}
-        </h1>
-        <p className="mt-2 text-gray-500 dark:text-gray-400">
-          {t("users.management.description")}
-        </p>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">المستخدمين</h1>
+        <p className="mt-2 text-gray-500 dark:text-gray-400">ادارة المستخدمين</p>
       </div>
 
-      <button
-        onClick={handleOpenCreateUserModal}
-        className="inline-flex items-center gap-2 rounded-lg bg-purple-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs hover:bg-purple-600"
-      >
+      <button onClick={handleOpenCreateUserModal} className="inline-flex items-center gap-2 rounded-lg bg-purple-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs
+      hover:bg-purple-600">
         <PlusIcon className="w-4 h-4" />
-        {t("users.management.addNewUser")}
+        اضافة مستخدم جديد
       </button>
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/3 sm:px-6">
         {error && (
-          <div className="mb-4 p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800">
-            {error}
-          </div>
+          <div className="mb-4 p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800">{error}</div>
         )}
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="text-gray-500 dark:text-gray-400">
-              {t("users.management.loading")}
-            </div>
+            <div className="text-gray-500 dark:text-gray-400">جاري التحميل...</div>
           </div>
         ) : (
           <>
@@ -505,56 +391,24 @@ export default function UserManagement() {
               <Table>
                 <TableHeader className="border-gray-100 dark:border-gray-800 border-y">
                   <TableRow>
-                    <TableCell
-                      isHeader
-                      className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
                       <div className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={
-                            users.length > 0 &&
-                            selectedUsers.length === users.length
-                          }
-                          onChange={toggleSelectAll}
-                          className="w-4 h-4 text-brand-500 border-gray-300 rounded focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800"
-                        />
-                        {t("users.management.tableHeaders.user")}
+                        <input type="checkbox" checked={users.length > 0 && selectedUsers.length === users.length} onChange={toggleSelectAll} className="w-4 h-4 text-brand-500 border-gray-300
+                        rounded focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800" />
+                        اسم المستخدم
                       </div>
                     </TableCell>
-                    <TableCell
-                      isHeader
-                      className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      {t("users.management.tableHeaders.role")}
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      {t("users.management.tableHeaders.lastLogin")}
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      {t("users.management.tableHeaders.status")}
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      {t("users.management.tableHeaders.actions")}
-                    </TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">الدور</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">آخر تسجيل دخول</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">الحالة</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">الاجراءات</TableCell>
                   </TableRow>
                 </TableHeader>
 
                 <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {users.length === 0 ? (
                     <TableRow>
-                      <TableCell className="py-12 text-center text-gray-500 dark:text-gray-400">
-                        {t("users.management.noUsers")}
-                      </TableCell>
+                      <TableCell className="py-12 text-center text-gray-500 dark:text-gray-400">لا يوجد مستخدمين</TableCell>
                     </TableRow>
                   ) : (
                     users.map((user) => {
@@ -568,87 +422,50 @@ export default function UserManagement() {
                         <TableRow key={user.user_id}>
                           <TableCell className="py-3">
                             <div className="flex items-center gap-3">
-                              <input
-                                type="checkbox"
-                                checked={selectedUsers.includes(user.user_id)}
-                                onChange={() =>
-                                  toggleUserSelection(user.user_id)
-                                }
-                                className="w-4 h-4 text-brand-500 border-gray-300 rounded focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800"
-                              />
+                              <input type="checkbox" checked={selectedUsers.includes(user.user_id)} onChange={() => toggleUserSelection(user.user_id)} className="w-4 h-4 text-brand-500
+                              border-gray-300 rounded focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800" />
                               <div className="flex items-center gap-3">
                                 <div className="flex items-center justify-center w-8 h-8 text-purple-500">
                                   <UserCircleIcon className="size-6" />
                                 </div>
-                                <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
-                                  {`${user.first_name} ${user.last_name}`}
-                                </span>
+                                <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90">{`${user.first_name} ${user.last_name}`}</span>
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                            {roleName || user.default_role.role_name_key}
-                          </TableCell>
-                          <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                            {formatDate(user.last_login_timestamp, t)}
-                          </TableCell>
+                          <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">{roleName || user.default_role.role_name_key}</TableCell>
+                          <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">{formatDate(user.last_login_timestamp)}</TableCell>
                           <TableCell className="py-3">
-                            <Badge
-                              size="sm"
-                              color={getStatusBadgeColor(statusName)}
-                            >
-                              {statusName}
-                            </Badge>
+                            <Badge size="sm" color={getStatusBadgeColor(statusName)}>{statusName}</Badge>
                           </TableCell>
                           <TableCell className="py-3">
                             <div className="flex items-center gap-2">
                               <div className="relative">
-                                <button
-                                  onClick={() =>
-                                    setActionDropdownOpen(
-                                      actionDropdownOpen === user.user_id
-                                        ? null
-                                        : user.user_id
-                                    )
-                                  }
-                                  className="p-1.5 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-                                >
+                                <button onClick={() => setActionDropdownOpen(actionDropdownOpen === user.user_id ? null : user.user_id)} className="p-1.5 text-gray-500 rounded-lg
+                                hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800">
                                   <MoreDotIcon className="w-5 h-5" />
                                 </button>
-                                <Dropdown
-                                  isOpen={actionDropdownOpen === user.user_id}
-                                  onClose={() => setActionDropdownOpen(null)}
-                                  className="absolute left-0 mt-2 w-40 p-2 z-50"
-                                >
-                                  <DropdownItem
-                                    onItemClick={() => {
-                                      setActionDropdownOpen(null);
-                                      router.push(`/profile?userId=${user.user_id}`);
-                                    }}
-                                    className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-                                  >
-                                    {t("users.management.actions.viewDetails")}
+                                <Dropdown isOpen={actionDropdownOpen === user.user_id} onClose={() => setActionDropdownOpen(null)} className="absolute left-0 mt-2 w-40 p-2 z-50">
+                                  <DropdownItem onItemClick={() => {
+                                    setActionDropdownOpen(null);
+                                    router.push(`/admin/profile?userId=${user.user_id}`);
+                                  }} className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400
+                                  dark:hover:bg-white/5 dark:hover:text-gray-300">
+                                    عرض التفاصيل
                                   </DropdownItem>
-                                  <DropdownItem
-                                    onItemClick={() => {
-                                      setActionDropdownOpen(null);
-                                      handleOpenStatusModal(user);
-                                    }}
-                                    className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-                                  >
-                                    {t("users.management.actions.changeStatus")}
+                                  <DropdownItem onItemClick={() => {
+                                    setActionDropdownOpen(null);
+                                    handleOpenStatusModal(user);
+                                  }} className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400
+                                  dark:hover:bg-white/5 dark:hover:text-gray-300">
+                                    تغيير الحالة
                                   </DropdownItem>
-                                  <DropdownItem
-                                    onItemClick={() => {
-                                      setActionDropdownOpen(null);
-                                      handleDeleteUser(
-                                        user.user_id,
-                                        `${user.first_name} ${user.last_name}`
-                                      );
-                                    }}
-                                    className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-red-300"
+                                  <DropdownItem onItemClick={() => {
+                                    setActionDropdownOpen(null);
+                                    handleDeleteUser(user.user_id, `${user.first_name} ${user.last_name}`);
+                                  }} className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5
+                                  dark:hover:text-red-300"
                                   >
-                                    {t("users.management.actions.delete")}
+                                    حذف المستخدم
                                   </DropdownItem>
                                 </Dropdown>
                               </div>
@@ -665,51 +482,29 @@ export default function UserManagement() {
         )}
       </div>
 
-      <Modal
-        isOpen={isStatusModalOpen}
-        onClose={handleCloseStatusModal}
-        className="max-w-[600px] p-5 lg:p-10"
-      >
+      <Modal isOpen={isStatusModalOpen} onClose={handleCloseStatusModal} className="max-w-[600px] p-5 lg:p-10">
         <div className="space-y-6">
-          <h4 className="font-semibold text-gray-800 text-title-sm dark:text-white/90">
-            {t("users.management.statusModal.title")}
-          </h4>
+          <h4 className="font-semibold text-gray-800 text-title-sm dark:text-white/90">تغيير الحالة</h4>
 
           {selectedUserForStatusChange && (
             <div className="space-y-4">
               <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {t("users.management.statusModal.user")}{" "}
-                  <span className="font-medium text-gray-800 dark:text-white/90">
-                    {`${selectedUserForStatusChange.first_name} ${selectedUserForStatusChange.last_name}`}
-                  </span>
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  {t("users.management.statusModal.currentStatus")}{" "}
-                  <span className="font-medium text-gray-800 dark:text-white/90">
-                    {getAccountStatusLabel(selectedUserForStatusChange.account_status)}
-                  </span>
+                <p className="text-sm text-gray-600 dark:text-gray-400">اسم المستخدم
+                  <span className="font-medium text-gray-800 dark:text-white/90">{`${selectedUserForStatusChange.first_name} ${selectedUserForStatusChange.last_name}`}</span>
+                  {getAccountStatusLabel(selectedUserForStatusChange.account_status)}
                 </p>
               </div>
 
               <div>
-                <Label>
-                  {t("users.management.statusModal.newStatus")} <span className="text-error-500">*</span>
-                </Label>
-                <select
-                  value={String(selectedStatusId)}
-                  onChange={(e) => {
+                <Label>الحالة الجديدة <span className="text-error-500">*</span></Label>
+                <select value={String(selectedStatusId)} onChange={(e) => {
                     const v = e.target.value;
                     setSelectedStatusId(v === "" ? null : parseInt(v, 10));
-                  }}
-                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
-                >
-                  <option value="">{t("users.management.statusModal.selectStatus")}</option>
+                  }} className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden
+                  focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800">
+                  <option value="">اختر الحالة</option>
                   {ACCOUNT_STATUSES.map((status) => (
-                    <option
-                      key={status.account_status_id}
-                      value={String(status.account_status_id)}
-                    >
+                    <option key={status.account_status_id} value={String(status.account_status_id)}>
                       {ACCOUNT_STATUS_LABELS[status.status_name_key] || status.status_name_key}
                     </option>
                   ))}
@@ -717,179 +512,94 @@ export default function UserManagement() {
               </div>
 
               <div>
-                <Label>{t("users.management.statusModal.reasonLabel")}</Label>
-                <textarea
-                  placeholder={t("users.management.statusModal.reasonPlaceholder")}
-                  value={reasonForChange}
-                  onChange={(e) => setReasonForChange(e.target.value)}
-                  rows={4}
-                  className="h-auto w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-                />
+                <Label>السبب</Label>
+                <textarea placeholder="أدخل السبب" value={reasonForChange} onChange={(e) => setReasonForChange(e.target.value)} rows={4} className="h-auto w-full rounded-lg border
+                border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3
+                focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800" />
               </div>
 
               {error && (
-                <div className="p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800">
-                  {error}
-                </div>
+                <div className="p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800">{error}</div>
               )}
 
               <div className="flex items-center justify-end gap-3 pt-4">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleCloseStatusModal}
-                  disabled={isChangingStatus}
-                >
-                  {t("users.management.statusModal.cancel")}
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={handleChangeUserStatus}
-                  disabled={isChangingStatus || !selectedStatusId}
-                >
-                  {isChangingStatus ? t("users.management.statusModal.updating") : t("users.management.statusModal.update")}
-                </Button>
+                <Button size="sm" variant="outline" onClick={handleCloseStatusModal} disabled={isChangingStatus}>الغاء</Button>
+                <Button size="sm" onClick={handleChangeUserStatus} disabled={isChangingStatus || !selectedStatusId}>{isChangingStatus ? "جاري التحديث" : "تحديث"}</Button>
               </div>
             </div>
           )}
         </div>
       </Modal>
 
-      {/* Create User Modal */}
-      <Modal
-        isOpen={isCreateUserModalOpen}
-        onClose={handleCloseCreateUserModal}
-        className="max-w-[600px] p-5 lg:p-10"
-      >
+      <Modal isOpen={isCreateUserModalOpen} onClose={handleCloseCreateUserModal} className="max-w-[600px] p-5 lg:p-10">
         <form onSubmit={handleCreateUser} className="space-y-6">
-          <h4 className="font-semibold text-gray-800 text-title-sm dark:text-white/90">
-            إضافة مستخدم جديد
-          </h4>
+          <h4 className="font-semibold text-gray-800 text-title-sm dark:text-white/90">إضافة مستخدم جديد</h4>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <Label>
-                الاسم الأول <span className="text-error-500">*</span>
-              </Label>
-              <input
-                type="text"
-                value={newUserForm.first_name}
-                onChange={(e) =>
-                  setNewUserForm((prev) => ({ ...prev, first_name: e.target.value }))
-                }
-                placeholder="أدخل الاسم الأول"
-                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder-white/30 dark:focus:border-brand-800"
-              />
+              <Label> الاسم الأول <span className="text-error-500">*</span></Label>
+              <input type="text" value={newUserForm.first_name} onChange={(e) => setNewUserForm((prev) => ({ ...prev, first_name: e.target.value }))} placeholder="أدخل الاسم الأول" className="h-11
+              w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none
+              focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder-white/30 dark:focus:border-brand-800" />
             </div>
 
             <div>
-              <Label>
-                الاسم الأخير <span className="text-error-500">*</span>
-              </Label>
-              <input
-                type="text"
-                value={newUserForm.last_name}
-                onChange={(e) =>
-                  setNewUserForm((prev) => ({ ...prev, last_name: e.target.value }))
-                }
-                placeholder="أدخل الاسم الأخير"
-                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder-white/30 dark:focus:border-brand-800"
+              <Label>الاسم الأخير <span className="text-error-500">*</span></Label>
+              <input type="text" value={newUserForm.last_name} onChange={(e) => setNewUserForm((prev) => ({ ...prev, last_name: e.target.value }))} placeholder="أدخل الاسم الأخير" className="h-11
+              w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none
+              focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder-white/30 dark:focus:border-brand-800" />
+            </div>
+
+            <div className="sm:col-span-2">
+              <Label> رقم الهاتف <span className="text-error-500">*</span></Label>
+              <input type="tel" value={newUserForm.phone_number} onChange={(e) => setNewUserForm((prev) => ({ ...prev, phone_number: e.target.value }))} placeholder="+966538509289" dir="ltr"
+              className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300
+              focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder-white/30 dark:focus:border-brand-800"
               />
             </div>
 
             <div className="sm:col-span-2">
-              <Label>
-                رقم الهاتف <span className="text-error-500">*</span>
-              </Label>
-              <input
-                type="tel"
-                value={newUserForm.phone_number}
-                onChange={(e) =>
-                  setNewUserForm((prev) => ({ ...prev, phone_number: e.target.value }))
-                }
-                placeholder="+966538509289"
-                dir="ltr"
-                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder-white/30 dark:focus:border-brand-800"
-              />
-            </div>
-
-            <div className="sm:col-span-2">
-              <Label>
-                كلمة المرور <span className="text-error-500">*</span>
-              </Label>
-              <input
-                type="password"
-                value={newUserForm.password}
-                onChange={(e) =>
-                  setNewUserForm((prev) => ({ ...prev, password: e.target.value }))
-                }
-                placeholder="أدخل كلمة المرور"
-                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder-white/30 dark:focus:border-brand-800"
-              />
+              <Label>كلمة المرور <span className="text-error-500">*</span></Label>
+              <input type="password" value={newUserForm.password} onChange={(e) => setNewUserForm((prev) => ({ ...prev, password: e.target.value }))} placeholder="أدخل كلمة المرور" className="h-11
+              w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none
+              focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder-white/30 dark:focus:border-brand-800" />
             </div>
 
             <div>
-              <Label>
-                نوع المستخدم <span className="text-error-500">*</span>
-              </Label>
-              <select
-                value={newUserForm.user_type_id}
-                onChange={(e) =>
-                  setNewUserForm((prev) => ({
-                    ...prev,
-                    user_type_id: parseInt(e.target.value, 10),
-                  }))
-                }
-                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
-              >
+              <Label> نوع المستخدم <span className="text-error-500">*</span></Label>
+              <select value={newUserForm.user_type_id} onChange={(e) => setNewUserForm((prev) => ({
+                ...prev,
+                user_type_id: parseInt(e.target.value, 10)
+              }))} className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden
+              focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800">
                 {USER_TYPES.map((type) => (
-                  <option key={type.user_type_id} value={type.user_type_id}>
-                    {USER_TYPE_LABELS[type.user_type_name_key] || type.user_type_name_key}
-                  </option>
+                  <option key={type.user_type_id} value={type.user_type_id}>{USER_TYPE_LABELS[type.user_type_name_key] || type.user_type_name_key}</option>
                 ))}
               </select>
             </div>
 
             <div>
-              <Label>
-                حالة الحساب <span className="text-error-500">*</span>
-              </Label>
-              <select
-                value={newUserForm.account_status_id}
-                onChange={(e) =>
-                  setNewUserForm((prev) => ({
-                    ...prev,
-                    account_status_id: parseInt(e.target.value, 10),
-                  }))
-                }
-                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
-              >
+              <Label>حالة الحساب <span className="text-error-500">*</span></Label>
+              <select value={newUserForm.account_status_id} onChange={(e) => setNewUserForm((prev) => ({
+                ...prev,
+                account_status_id: parseInt(e.target.value, 10)
+              }))} className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden
+              focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800">
                 {ACCOUNT_STATUSES.map((status) => (
-                  <option key={status.account_status_id} value={status.account_status_id}>
-                    {ACCOUNT_STATUS_LABELS[status.status_name_key] || status.status_name_key}
-                  </option>
+                  <option key={status.account_status_id} value={status.account_status_id}>{ACCOUNT_STATUS_LABELS[status.status_name_key] || status.status_name_key}</option>
                 ))}
               </select>
             </div>
 
             <div className="sm:col-span-2">
-              <Label>
-                اللغة المفضلة <span className="text-error-500">*</span>
-              </Label>
-              <select
-                value={newUserForm.preferred_language_code}
-                onChange={(e) =>
-                  setNewUserForm((prev) => ({
-                    ...prev,
-                    preferred_language_code: e.target.value,
-                  }))
-                }
-                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
-              >
+              <Label>اللغة المفضلة <span className="text-error-500">*</span></Label>
+              <select value={newUserForm.preferred_language_code} onChange={(e) => setNewUserForm((prev) => ({
+                ...prev,
+                preferred_language_code: e.target.value
+              }))} className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden
+              focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800">
                 {LANGUAGES.map((lang) => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.name}
-                  </option>
+                  <option key={lang.code} value={lang.code}>{lang.name}</option>
                 ))}
               </select>
             </div>
@@ -902,19 +612,13 @@ export default function UserManagement() {
           )}
 
           <div className="flex items-center justify-end gap-3 pt-4">
-            <button
-              type="button"
-              onClick={handleCloseCreateUserModal}
-              disabled={isCreatingUser}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-3 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition hover:bg-gray-50 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/3 dark:hover:text-gray-300"
-            >
+            <button type="button" onClick={handleCloseCreateUserModal} disabled={isCreatingUser} className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-3 text-sm
+            font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition hover:bg-gray-50 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700
+            dark:hover:bg-white/3 dark:hover:text-gray-300">
               إلغاء
             </button>
-            <button
-              type="submit"
-              disabled={isCreatingUser}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-3 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-brand-300"
-            >
+            <button type="submit" disabled={isCreatingUser} className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-3 text-sm font-medium text-white
+            shadow-theme-xs transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-brand-300">
               {isCreatingUser ? "جاري الإنشاء..." : "إنشاء المستخدم"}
             </button>
           </div>

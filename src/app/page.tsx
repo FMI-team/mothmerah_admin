@@ -16,6 +16,12 @@ export default function Home() {
     if (getToken() && getRole() === "BASE_USER") {
       router.push("/base-user");
     }
+    if (getToken() && getRole() === "WHOLESALER") {
+      router.push("/wholesaler");
+    }
+    if (getToken() && getRole() === "ADMIN") {
+      router.push("/admin");
+    }
   }, [router]);
 
   return null;

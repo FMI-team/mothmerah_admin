@@ -33,52 +33,52 @@ const adminNavItems: NavItem[] = [
   {
     icon: <GridIcon />,
     name: "لوحة التحكم",
-    path: "/",
+    path: "/admin",
   },
   {
     icon: <GroupIcon />,
     name: "ادارة المستخدمين",
-    path: "/users",
+    path: "/admin/users",
   },
   {
     icon: <BoxIcon />,
     name: "كتالوج المنتجات",
-    path: "/products",
+    path: "/admin/products",
   },
   {
     icon: <BoltIcon />,
     name: "ادارة المزادات",
-    path: "/auctions",
+    path: "/admin/auctions",
   },
   {
     icon: <BoxCubeIcon />,
     name: "ادارة المخازن",
-    path: "/warehouses",
+    path: "/admin/warehouses",
   },
   {
     icon: <DocsIcon />,
     name: "ادارة الفواتير",
-    path: "/invoices",
+    path: "/admin/invoices",
   },
   {
     icon: <TaskIcon />,
     name: "ادارة المطالبات",
-    path: "/claims",
+    path: "/admin/claims",
   },
   {
     icon: <PieChartIcon />,
     name: "التقارير المالية",
-    path: "/reports",
+    path: "/admin/reports",
   },
   {
     icon: <PlugInIcon />,
     name: "اعدادات المنصة",
-    path: "/settings",
+    path: "/admin/settings",
   },
   {
     icon: <ChatIcon />,
     name: "تذاكر الدعم",
-    path: "/support",
+    path: "/admin/support",
   },
 ];
 

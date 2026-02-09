@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import UserMetaCard from "./UserMetaCard";
 import UserInfoCard from "./UserInfoCard";
 import UserAddressCard from "./UserAddressCard";
 import { fetchAndStoreUserInfo, logout, updateUserInfo } from "../../../services/auth";
+import { readUserById } from "../../../services/users";
 import { AxiosError } from "axios";
 
 interface Translation {
@@ -86,6 +88,8 @@ export default function UserProfileView() {
   const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const viewedUserId = searchParams.get("userId");
 
   useEffect(() => {
     const fetchUserDetails = async () => {
@@ -93,7 +97,9 @@ export default function UserProfileView() {
       setError(null);
 
       try {
-        const response = await fetchAndStoreUserInfo();
+        const response = viewedUserId
+          ? await readUserById(viewedUserId)
+          : await fetchAndStoreUserInfo();
         if ((response.status as number) === 401) {
           logout();
         }
