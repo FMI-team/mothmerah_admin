@@ -45,3 +45,23 @@ export async function createAuction(data: unknown) {
   const response = await api.post('api/v1/auctions/', data)
   return response
 }
+
+export async function readAllAuctionStatuses() {
+  const response = await api.get('admin/admin/auctions/statuses')
+  return response
+}
+
+export async function deleteAuctionStatusById(auctionStatusId: number) {
+  const response = await api.delete(`admin/admin/auctions/statuses/${auctionStatusId}`)
+  return response
+}
+
+export async function updateAuctionStatusById(auctionStatusId: number, data: unknown) {
+  const response = await api.patch(`admin/admin/auctions/statuses/${auctionStatusId}`, data)
+  return response
+}
+
+export async function createAuctionStatus(data: unknown) {
+  const response = await api.post('admin/admin/auctions/statuses', data)
+  return response
+}

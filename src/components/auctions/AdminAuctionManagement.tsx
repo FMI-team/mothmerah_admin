@@ -2,24 +2,18 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { MoreDotIcon, PlusIcon, DownloadIcon, ArrowUpIcon, PencilIcon } from "@/icons";
+import { MoreDotIcon, PlusIcon, ArrowUpIcon, PencilIcon } from "@/icons";
 import Badge from "../ui/badge/Badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../ui/table";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import Button from "../ui/button/Button";
 import { Modal } from "../ui/modal";
 import Label from "../form/Label";
-import { getAuthHeader } from "../../../services/auth";
-import CreateAuctionForm from "./CreateAuctionForm";
+import { createAuctionStatus, deleteAuctionById, deleteAuctionStatusById, readAllAuctionStatuses, readAllAvailableAuctions, updateAuctionStatusById } from "../../../services/auctions";
+import { AxiosError } from "axios";
+import AdminCreateAuctionForm from "./AdminCreateAuctionForm";
 
-const API_BASE = "https://api-testing.mothmerah.sa";
 
 interface Translation {
   language_code: string;
@@ -30,7 +24,6 @@ interface Translation {
   translated_description?: string | null;
 }
 
-/** Form item for status create/update */
 interface StatusTranslationFormItem {
   language_code: string;
   translated_status_name: string;
@@ -124,7 +117,6 @@ const formatDate = (dateString: string): string => {
 export default function AdminAuctionManagement() {
   const router = useRouter();
   const pathname = usePathname();
-  const [selectedAuctions, setSelectedAuctions] = useState<string[]>([]);
   const [actionDropdownOpen, setActionDropdownOpen] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [auctions, setAuctions] = useState<ApiAuction[]>([]);
@@ -151,16 +143,11 @@ export default function AdminAuctionManagement() {
 
   const fetchAuctionStatuses = useCallback(async () => {
     try {
-      const authHeader = getAuthHeader();
-      const response = await fetch(`${API_BASE}/admin/admin/auctions/statuses`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeader,
-        },
-      });
-      if (!response.ok) return;
-      const data: AuctionStatus[] = await response.json();
+      const response = await readAllAuctionStatuses()
+      if (response.status !== 200) {
+        setError('فشل في جلب الحالات');
+      }
+      const data: AuctionStatus[] = response.data;
       setAuctionStatuses(Array.isArray(data) ? data : []);
     } catch {
       setAuctionStatuses([]);
@@ -171,27 +158,18 @@ export default function AdminAuctionManagement() {
     setIsLoading(true);
     setError(null);
     try {
-      const authHeader = getAuthHeader();
-      const response = await fetch(`${API_BASE}/api/v1/auctions/`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeader,
-        },
-      });
-      if (!response.ok) {
-        throw new Error("فشل في جلب المزادات");
+      const response = await readAllAvailableAuctions()
+      if (response.status !== 200) {
+        setError('فشل في جلب المزادات');
+        setIsLoading(false);
+        return;
       }
-      const data: ApiAuction[] = await response.json();
+      const data: ApiAuction[] = response.data;
       setAuctions(data || []);
-    } catch (err) {
-      console.error("Error fetching auctions:", err);
-      setError(
-        err instanceof Error ? err.message : "حدث خطأ في جلب بيانات المزادات"
-      );
-      setAuctions([]);
-    } finally {
       setIsLoading(false);
+    } catch (err) {
+      setError((err as AxiosError).response?.data?.message?.detail || 'حدث خطأ في جلب بيانات المزادات');
+      setAuctions([]);
     }
   }, []);
 
@@ -238,12 +216,10 @@ export default function AdminAuctionManagement() {
     setEditingStatus(status);
     setEditStatusNameKey(status.status_name_key);
     setEditStatusTranslations(
-      status.translations?.length > 0
-        ? status.translations.map((t) => ({
-            language_code: t.language_code,
-            translated_status_name: t.translated_status_name ?? "",
-          }))
-        : [{ language_code: "ar", translated_status_name: "" }]
+      status.translations?.length > 0 ? status.translations.map((t) => ({
+        language_code: t.language_code,
+        translated_status_name: t.translated_status_name ?? ""
+      })) : [{ language_code: "ar", translated_status_name: "" }]
     );
     setUpdateStatusError(null);
   };
@@ -267,9 +243,7 @@ export default function AdminAuctionManagement() {
   };
 
   const updateEditStatusTranslation = (index: number, field: keyof StatusTranslationFormItem, value: string) => {
-    setEditStatusTranslations((prev) =>
-      prev.map((t, i) => (i === index ? { ...t, [field]: value } : t))
-    );
+    setEditStatusTranslations((prev) => prev.map((t, i) => (i === index ? { ...t, [field]: value } : t)));
   };
 
   const handleDeleteAuctionStatus = async (status: AuctionStatus) => {
@@ -278,27 +252,13 @@ export default function AdminAuctionManagement() {
     setDeletingStatusId(status.auction_status_id);
     if (editingStatus?.auction_status_id === status.auction_status_id) closeEditStatusModal();
     try {
-      const authHeader = getAuthHeader();
-      const response = await fetch(
-        `${API_BASE}/admin/admin/auctions/statuses/${status.auction_status_id}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeader,
-          },
-        }
-      );
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => ({}));
-        const msg = Array.isArray((errBody as { detail?: unknown }).detail)
-          ? (errBody as { detail: { msg?: string }[] }).detail.map((d) => d.msg).filter(Boolean).join(" — ")
-          : (errBody as { detail?: string }).detail || (errBody as { message?: string }).message || "فشل حذف الحالة";
-        throw new Error(msg);
+      const response = await deleteAuctionStatusById(status.auction_status_id);
+      if (response.status !== 200) {
+        setError('فشل في حذف الحالة');
       }
       await fetchAuctionStatuses();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "فشل حذف الحالة");
+      setError((err as AxiosError).response?.data?.message?.detail || 'فشل حذف الحالة');
     } finally {
       setDeletingStatusId(null);
     }
@@ -320,35 +280,20 @@ export default function AdminAuctionManagement() {
     setUpdateStatusError(null);
     setUpdateStatusSubmitting(true);
     try {
-      const authHeader = getAuthHeader();
-      const response = await fetch(
-        `${API_BASE}/admin/admin/auctions/statuses/${editingStatus.auction_status_id}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeader,
-          },
-          body: JSON.stringify({
-            status_name_key: trimmedKey,
-            translations: validTranslations.map((t) => ({
-              language_code: t.language_code.trim(),
-              translated_status_name: t.translated_status_name.trim(),
-            })),
-          }),
-        }
-      );
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => ({}));
-        const msg = Array.isArray((errBody as { detail?: unknown }).detail)
-          ? (errBody as { detail: { msg?: string }[] }).detail.map((d) => d.msg).filter(Boolean).join(" — ")
-          : (errBody as { detail?: string }).detail || (errBody as { message?: string }).message || "فشل تحديث الحالة";
-        throw new Error(msg);
+      const response = await updateAuctionStatusById(editingStatus.auction_status_id, {
+        status_name_key: trimmedKey,
+        translations: validTranslations.map((t) => ({
+          language_code: t.language_code.trim(),
+          translated_status_name: t.translated_status_name.trim(),
+        })),
+      });
+      if (response.status !== 200) {
+        setError('فشل تحديث الحالة');
       }
       await fetchAuctionStatuses();
       closeEditStatusModal();
     } catch (err) {
-      setUpdateStatusError(err instanceof Error ? err.message : "فشل تحديث الحالة");
+      setUpdateStatusError((err as AxiosError).response?.data?.message?.detail || 'فشل تحديث الحالة');
     } finally {
       setUpdateStatusSubmitting(false);
     }
@@ -370,27 +315,15 @@ export default function AdminAuctionManagement() {
     setCreateStatusError(null);
     setCreateStatusSubmitting(true);
     try {
-      const authHeader = getAuthHeader();
-      const response = await fetch(`${API_BASE}/admin/admin/auctions/statuses`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeader,
-        },
-        body: JSON.stringify({
-          status_name_key: trimmedKey,
-          translations: validTranslations.map((t) => ({
-            language_code: t.language_code.trim(),
-            translated_status_name: t.translated_status_name.trim(),
-          })),
-        }),
+      const response = await createAuctionStatus({
+        status_name_key: trimmedKey,
+        translations: validTranslations.map((t) => ({
+          language_code: t.language_code.trim(),
+          translated_status_name: t.translated_status_name.trim(),
+        })),
       });
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => ({}));
-        const msg = Array.isArray((errBody as { detail?: unknown }).detail)
-          ? (errBody as { detail: { msg?: string }[] }).detail.map((d) => d.msg).filter(Boolean).join(" — ")
-          : (errBody as { detail?: string }).detail || (errBody as { message?: string }).message || "فشل إنشاء الحالة";
-        throw new Error(msg);
+      if (response.status !== 200) {
+        setError('فشل إنشاء الحالة');
       }
       await fetchAuctionStatuses();
       closeCreateStatusModal();
@@ -407,25 +340,13 @@ export default function AdminAuctionManagement() {
     setActionDropdownOpen(null);
     setError(null);
     try {
-      const authHeader = getAuthHeader();
-      const response = await fetch(`${API_BASE}/api/v1/auctions/${auctionId}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeader,
-        },
-      });
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(
-          (errData as { detail?: string })?.detail || "فشل في حذف المزاد"
-        );
+      const response = await deleteAuctionById(auctionId);
+      if (response.status !== 200) {
+        setError('فشل في حذف المزاد');
       }
       await fetchAuctions();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "حدث خطأ في حذف المزاد"
-      );
+      setError((err as AxiosError).response?.data?.message?.detail || 'حدث خطأ في حذف المزاد');
     } finally {
       setDeletingAuctionId(null);
     }
@@ -438,22 +359,6 @@ export default function AdminAuctionManagement() {
 
   const totalItems = auctions.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
-
-  const toggleAuctionSelection = (auctionId: string) => {
-    setSelectedAuctions((prev) =>
-      prev.includes(auctionId)
-        ? prev.filter((id) => id !== auctionId)
-        : [...prev, auctionId]
-    );
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedAuctions.length === paginatedAuctions.length) {
-      setSelectedAuctions([]);
-    } else {
-      setSelectedAuctions(paginatedAuctions.map((auction) => auction.auction_id));
-    }
-  };
 
   const getStatusBadgeColor = (
     statusName: string
@@ -473,30 +378,11 @@ export default function AdminAuctionManagement() {
 
   const statisticsCards = (() => {
     const totalAuctions = auctions.length;
-    const statusCards =
-      auctionStatuses.length > 0
-        ? auctionStatuses.map((status) => ({
-            title: `عدد المزادات (${getArabicTranslation(status.translations, "translated_status_name") || status.status_name_key})`,
-            value: auctions.filter((a) => a.auction_status.auction_status_id === status.auction_status_id).length.toString(),
-            change: "",
-          }))
-        : [
-            {
-              title: "اجمالي عدد المزادات القائمة",
-              value: auctions.filter((a) => a.auction_status.status_name_key === "ACTIVE").length.toString(),
-              change: "",
-            },
-            {
-              title: "اجمالي عدد المزادات المجدولة",
-              value: auctions.filter((a) => a.auction_status.status_name_key === "SCHEDULED").length.toString(),
-              change: "",
-            },
-            {
-              title: "اجمالي عدد المزادات المنتهية",
-              value: auctions.filter((a) => a.auction_status.status_name_key === "ENDED" || a.auction_status.status_name_key === "CLOSED").length.toString(),
-              change: "",
-            },
-          ];
+    const statusCards = auctionStatuses.length > 0 ? auctionStatuses.map((status) => ({
+      title: `عدد المزادات (${getArabicTranslation(status.translations, "translated_status_name") || status.status_name_key})`,
+      value: auctions.filter((a) => a.auction_status.auction_status_id === status.auction_status_id).length.toString(),
+      change: "",
+    })) : [];
     return [
       {
         title: "اجمالي عدد المزادات",
@@ -519,68 +405,24 @@ export default function AdminAuctionManagement() {
     ];
   })();
 
-  const handleExportCSV = () => {
-    const csvContent = [
-      ["عنوان المزاد", "المنتج", "الفئة", "نوع المزاد", "الحالة", "السعر الابتدائي", "أعلى مزايدة", "عدد المزايدات", "الكمية", "تاريخ البدء", "تاريخ الانتهاء"],
-      ...auctions.map((auction) => [
-        auction.custom_auction_title || "بدون عنوان",
-        getArabicTranslation(auction.product.translations, "translated_product_name") || auction.product.product_id,
-        getArabicTranslation(auction.product.category.translations, "translated_category_name") || auction.product.category.category_name_key,
-        getArabicTranslation(auction.auction_type.translations, "translated_type_name") || auction.auction_type.type_name_key,
-        getArabicTranslation(auction.auction_status.translations, "translated_status_name") || auction.auction_status.status_name_key,
-        auction.starting_price_per_unit.toString(),
-        (auction.current_highest_bid_amount_per_unit || auction.starting_price_per_unit).toString(),
-        auction.total_bids_count.toString(),
-        auction.quantity_offered.toString(),
-        formatDate(auction.start_timestamp),
-        formatDate(auction.end_timestamp),
-      ]),
-    ]
-      .map((row) => row.join(","))
-      .join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `auctions_report_${new Date().getTime()}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
-          ادارة المزادات (لوحة الإدارة)
-        </h1>
-        <p className="mt-2 text-gray-500 dark:text-gray-400">
-          ادارة المزادات وحالتها ونوعها
-        </p>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">ادارة المزادات (لوحة الإدارة)</h1>
+        <p className="mt-2 text-gray-500 dark:text-gray-400">ادارة المزادات وحالتها ونوعها</p>
       </div>
 
       {error && (
-        <div className="p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800">
-          {error}
-        </div>
+        <div className="p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800">{error}</div>
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {statisticsCards.map((card, index) => (
-          <div
-            key={index}
-            className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 sm:p-6"
-          >
+          <div key={index} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {card.title}
-                </p>
-                <p className="mt-2 text-2xl font-bold text-gray-800 dark:text-white/90">
-                  {card.value}
-                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{card.title}</p>
+                <p className="mt-2 text-2xl font-bold text-gray-800 dark:text-white/90">{card.value}</p>
               </div>
             </div>
             {card.change && (
@@ -593,40 +435,28 @@ export default function AdminAuctionManagement() {
         ))}
       </div>
 
+      {error && (
+        <div className="p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800">{error}</div>
+      )}
+
       {auctionStatuses.length > 0 && (
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 sm:p-6">
-          <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
-            حالات المزاد
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">حالات المزاد</h3>
+            <Button size="sm" variant="outline" onClick={openCreateStatusModal}>إضافة حالة مزاد</Button>
+          </div>
           <ul className="space-y-2">
             {auctionStatuses.map((status) => (
-              <li
-                key={status.auction_status_id}
-                className="flex items-center justify-between gap-4 rounded-lg border border-gray-100 py-2.5 px-3 dark:border-gray-800"
-              >
-                <span className="text-sm font-medium text-gray-800 dark:text-white/90">
-                  {getArabicTranslation(status.translations, "translated_status_name") || status.status_name_key}
-                </span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {status.status_name_key}
-                </span>
+              <li key={status.auction_status_id} className="flex items-center justify-between gap-4 rounded-lg border border-gray-100 py-2.5 px-3 dark:border-gray-800">
+                <span className="text-sm font-medium text-gray-800 dark:text-white/90">{getArabicTranslation(status.translations, "translated_status_name") || status.status_name_key}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{status.status_name_key}</span>
                 <div className="flex items-center gap-2 shrink-0">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => openEditStatusModal(status)}
-                    disabled={deletingStatusId === status.auction_status_id}
-                  >
+                  <Button size="sm" variant="outline" onClick={() => openEditStatusModal(status)} disabled={deletingStatusId === status.auction_status_id}>
                     <PencilIcon className="w-4 h-4 ml-1.5" />
                     تعديل
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleDeleteAuctionStatus(status)}
-                    disabled={deletingStatusId === status.auction_status_id}
-                    className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
-                  >
+                  <Button size="sm" variant="outline" onClick={() => handleDeleteAuctionStatus(status)} disabled={deletingStatusId === status.auction_status_id}
+                  className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20">
                     {deletingStatusId === status.auction_status_id ? "جاري الحذف..." : "حذف"}
                   </Button>
                 </div>
@@ -639,25 +469,11 @@ export default function AdminAuctionManagement() {
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/3 sm:px-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              className="bg-purple-500 hover:bg-purple-600"
-              onClick={() => setIsCreateAuctionModalOpen(true)}
-            >
+            <Button size="sm" className="bg-purple-500 hover:bg-purple-600" onClick={() => setIsCreateAuctionModalOpen(true)}>
               <PlusIcon className="w-4 h-4 ml-2" />
               انشاء مزاد
             </Button>
-            <Button size="sm" variant="outline" onClick={openCreateStatusModal}>
-              إضافة حالة مزاد
-            </Button>
           </div>
-          <button
-            onClick={handleExportCSV}
-            className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-          >
-            <DownloadIcon className="w-4 h-4 inline-block ml-2" />
-            تصدير ك CSV
-          </button>
         </div>
 
         <div className="max-w-full overflow-x-auto">
@@ -665,18 +481,7 @@ export default function AdminAuctionManagement() {
             <TableHeader className="border-gray-100 dark:border-gray-800 border-y bg-purple-50 dark:bg-purple-900/10">
               <TableRow>
                 <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={
-                        paginatedAuctions.length > 0 &&
-                        selectedAuctions.length === paginatedAuctions.length
-                      }
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 text-brand-500 border-gray-300 rounded focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800"
-                    />
-                    عنوان المزاد
-                  </div>
+                  <div className="flex items-center gap-3">عنوان المزاد</div>
                 </TableCell>
                 <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">المنتج</TableCell>
                 <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">الفئة</TableCell>
@@ -693,15 +498,11 @@ export default function AdminAuctionManagement() {
             <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
               {isLoading ? (
                 <TableRow>
-                  <td colSpan={11} className="py-12 text-center text-gray-500 dark:text-gray-400">
-                    جاري التحميل...
-                  </td>
+                  <td colSpan={11} className="py-12 text-center text-gray-500 dark:text-gray-400">جاري التحميل...</td>
                 </TableRow>
               ) : paginatedAuctions.length === 0 ? (
                 <TableRow>
-                  <td colSpan={11} className="py-12 text-center text-gray-500 dark:text-gray-400">
-                    لا توجد مزادات متاحة
-                  </td>
+                  <td colSpan={11} className="py-12 text-center text-gray-500 dark:text-gray-400">لا توجد مزادات متاحة</td>
                 </TableRow>
               ) : (
                 paginatedAuctions.map((auction) => {
@@ -723,21 +524,10 @@ export default function AdminAuctionManagement() {
                   ) || auction.product.category.category_name_key;
 
                   return (
-                    <TableRow
-                      key={auction.auction_id}
-                      className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                    >
+                    <TableRow key={auction.auction_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                       <TableCell className="py-3">
                         <div className="flex items-center gap-3">
-                          <input
-                            type="checkbox"
-                            checked={selectedAuctions.includes(auction.auction_id)}
-                            onChange={() => toggleAuctionSelection(auction.auction_id)}
-                            className="w-4 h-4 text-brand-500 border-gray-300 rounded focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800"
-                          />
-                          <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
-                            {auction.custom_auction_title || "بدون عنوان"}
-                          </span>
+                          <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90">{auction.custom_auction_title || "بدون عنوان"}</span>
                         </div>
                       </TableCell>
                       <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">{productName}</TableCell>
@@ -745,13 +535,9 @@ export default function AdminAuctionManagement() {
                       <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">{typeName}</TableCell>
                       <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">{auction.total_bids_count}</TableCell>
                       <TableCell className="py-3">
-                        <Badge size="sm" color={getStatusBadgeColor(statusName)}>
-                          {statusName}
-                        </Badge>
+                        <Badge size="sm" color={getStatusBadgeColor(statusName)}>{statusName}</Badge>
                       </TableCell>
-                      <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
-                        {auction.starting_price_per_unit.toFixed(2)} ر.س
-                      </TableCell>
+                      <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">{auction.starting_price_per_unit.toFixed(2)} ر.س</TableCell>
                       <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">
                         {(auction.current_highest_bid_amount_per_unit || auction.starting_price_per_unit).toFixed(2)} ر.س
                       </TableCell>
@@ -759,28 +545,16 @@ export default function AdminAuctionManagement() {
                       <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">{formatDate(auction.end_timestamp)}</TableCell>
                       <TableCell className="py-3">
                         <div className="relative">
-                          <button
-                            onClick={() =>
-                              setActionDropdownOpen(
-                                actionDropdownOpen === auction.auction_id ? null : auction.auction_id
-                              )
-                            }
-                            className="p-1.5 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-                          >
+                          <button onClick={() => setActionDropdownOpen(actionDropdownOpen === auction.auction_id ? null : auction.auction_id)} className="p-1.5 text-gray-500 rounded-lg
+                          hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800">
                             <MoreDotIcon className="w-5 h-5" />
                           </button>
-                          <Dropdown
-                            isOpen={actionDropdownOpen === auction.auction_id}
-                            onClose={() => setActionDropdownOpen(null)}
-                            className="absolute left-0 mt-2 w-40 p-2 z-50"
-                          >
-                            <DropdownItem
-                              onItemClick={() => {
+                          <Dropdown isOpen={actionDropdownOpen === auction.auction_id} onClose={() => setActionDropdownOpen(null)} className="absolute left-0 mt-2 w-40 p-2 z-50">
+                            <DropdownItem onItemClick={() => {
                                 setActionDropdownOpen(null);
                                 router.push(`${pathname}/${auction.auction_id}`);
-                              }}
-                              className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-                            >
+                              }} className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5
+                              dark:hover:text-gray-300">
                               عرض التفاصيل
                             </DropdownItem>
                             <DropdownItem
@@ -788,14 +562,12 @@ export default function AdminAuctionManagement() {
                                 setActionDropdownOpen(null);
                                 router.push(`${pathname}/${auction.auction_id}/edit`);
                               }}
-                              className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-                            >
+                              className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5
+                              dark:hover:text-gray-300">
                               تعديل
                             </DropdownItem>
-                            <DropdownItem
-                              onItemClick={() => handleDeleteAuction(auction.auction_id)}
-                              className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-red-300"
-                            >
+                            <DropdownItem onItemClick={() => handleDeleteAuction(auction.auction_id)} className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100
+                            hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-red-300">
                               {deletingAuctionId === auction.auction_id ? "جاري الحذف..." : "حذف"}
                             </DropdownItem>
                           </Dropdown>
@@ -816,34 +588,24 @@ export default function AdminAuctionManagement() {
               {Math.min(currentPage * itemsPerPage, totalItems)} من {totalItems}
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-              >
+              <button onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm
+              text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300
+              dark:hover:bg-gray-700">
                 السابق
               </button>
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                 const page = i + 1;
                 return (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                      currentPage === page
-                        ? "bg-purple-500 text-white"
-                        : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                    }`}
-                  >
+                  <button key={page} onClick={() => setCurrentPage(page)} className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                    currentPage === page ? "bg-purple-500 text-white"
+                    : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"}`}>
                     {page}
                   </button>
                 );
               })}
-              <button
-                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                disabled={currentPage >= totalPages}
-                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-              >
+              <button onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))} disabled={currentPage >= totalPages} className="rounded-lg border border-gray-200 bg-white px-4
+              py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300
+              dark:hover:bg-gray-700">
                 التالي
               </button>
             </div>
@@ -851,51 +613,24 @@ export default function AdminAuctionManagement() {
         )}
       </div>
 
-      <CreateAuctionForm
-        isOpen={isCreateAuctionModalOpen}
-        onClose={() => setIsCreateAuctionModalOpen(false)}
-        onSuccess={fetchAuctions}
-        fetchAllProducts
-      />
+      <AdminCreateAuctionForm isOpen={isCreateAuctionModalOpen} onClose={() => setIsCreateAuctionModalOpen(false)} onSuccess={fetchAuctions} />
 
-      <Modal
-        isOpen={isCreateStatusModalOpen}
-        onClose={closeCreateStatusModal}
-        className="max-w-[520px] p-5 lg:p-10"
-      >
-        <h4 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
-          إضافة حالة مزاد
-        </h4>
+      <Modal isOpen={isCreateStatusModalOpen} onClose={closeCreateStatusModal} className="max-w-[520px] p-5 lg:p-10">
+        <h4 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">إضافة حالة مزاد</h4>
         <div className="space-y-4">
           <div>
-            <Label htmlFor="new-status-name-key">
-              مفتاح اسم الحالة <span className="text-red-500">*</span>
-            </Label>
-            <input
-              id="new-status-name-key"
-              type="text"
-              value={newStatusNameKey}
-              onChange={(e) => {
-                setNewStatusNameKey(e.target.value);
-                if (createStatusError) setCreateStatusError(null);
-              }}
-              placeholder="مثال: TEST_2"
-              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30"
-              disabled={createStatusSubmitting}
-            />
+            <Label htmlFor="new-status-name-key">مفتاح اسم الحالة <span className="text-red-500">*</span></Label>
+            <input id="new-status-name-key" type="text" value={newStatusNameKey} onChange={(e) => {
+              setNewStatusNameKey(e.target.value);
+              if (createStatusError) setCreateStatusError(null);
+            }} placeholder="مثال: TEST_2" className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400
+            dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30" disabled={createStatusSubmitting} />
           </div>
 
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <Label>
-                الترجمات <span className="text-red-500">*</span>
-              </Label>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={addNewStatusTranslation}
-                disabled={createStatusSubmitting || newStatusTranslations.length >= LANGUAGE_OPTIONS.length}
-              >
+              <Label>الترجمات <span className="text-red-500">*</span></Label>
+              <Button size="sm" variant="outline" onClick={addNewStatusTranslation} disabled={createStatusSubmitting || newStatusTranslations.length >= LANGUAGE_OPTIONS.length}>
                 إضافة لغة
               </Button>
             </div>
@@ -904,12 +639,8 @@ export default function AdminAuctionManagement() {
                 <div key={index} className="flex flex-wrap items-end gap-2">
                   <div className="min-w-[100px] flex-1">
                     <label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">اللغة</label>
-                    <select
-                      value={tr.language_code}
-                      onChange={(e) => updateNewStatusTranslation(index, "language_code", e.target.value)}
-                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white/90"
-                      disabled={createStatusSubmitting}
-                    >
+                    <select value={tr.language_code} onChange={(e) => updateNewStatusTranslation(index, "language_code", e.target.value)} className="w-full rounded-lg border border-gray-200
+                    bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white/90" disabled={createStatusSubmitting}>
                       {LANGUAGE_OPTIONS.filter((o) => o.value === tr.language_code || !newStatusTranslations.some((t, i) => i !== index && t.language_code === o.value)).map((o) => (
                         <option key={o.value} value={o.value}>{o.label}</option>
                       ))}
@@ -917,22 +648,13 @@ export default function AdminAuctionManagement() {
                   </div>
                   <div className="min-w-[140px] flex-1">
                     <label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">اسم الحالة المترجم</label>
-                    <input
-                      type="text"
-                      value={tr.translated_status_name}
-                      onChange={(e) => updateNewStatusTranslation(index, "translated_status_name", e.target.value)}
-                      placeholder="مثال: الاختبار الثاني"
-                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30"
-                      disabled={createStatusSubmitting}
-                    />
+                    <input type="text" value={tr.translated_status_name} onChange={(e) => updateNewStatusTranslation(index, "translated_status_name", e.target.value)}
+                    placeholder="مثال: الاختبار الثاني" className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400
+                    dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30" disabled={createStatusSubmitting} />
                   </div>
                   {newStatusTranslations.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeNewStatusTranslation(index)}
-                      className="rounded-lg border border-red-200 px-2 py-2 text-sm text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
-                      disabled={createStatusSubmitting}
-                    >
+                    <button type="button" onClick={() => removeNewStatusTranslation(index)} className="rounded-lg border border-red-200 px-2 py-2 text-sm text-red-600 hover:bg-red-50
+                    dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20" disabled={createStatusSubmitting}>
                       حذف
                     </button>
                   )}
@@ -945,64 +667,33 @@ export default function AdminAuctionManagement() {
           <p className="mt-3 text-sm text-red-600 dark:text-red-400">{createStatusError}</p>
         )}
         <div className="mt-6 flex gap-3 justify-end">
-          <Button size="sm" variant="outline" onClick={closeCreateStatusModal} disabled={createStatusSubmitting}>
-            إلغاء
-          </Button>
-          <Button
-            size="sm"
-            className="bg-purple-500 hover:bg-purple-600"
-            onClick={handleCreateAuctionStatus}
-            disabled={
-              !newStatusNameKey.trim() ||
-              !newStatusTranslations.some((t) => t.translated_status_name.trim()) ||
-              createStatusSubmitting
-            }
-          >
+          <Button size="sm" variant="outline" onClick={closeCreateStatusModal} disabled={createStatusSubmitting}>إلغاء</Button>
+          <Button size="sm" className="bg-purple-500 hover:bg-purple-600" onClick={handleCreateAuctionStatus} disabled={
+            !newStatusNameKey.trim() || !newStatusTranslations.some((t) => t.translated_status_name.trim()) || createStatusSubmitting
+          }>
             {createStatusSubmitting ? "جاري الحفظ..." : "إنشاء الحالة"}
           </Button>
         </div>
       </Modal>
 
-      <Modal
-        isOpen={!!editingStatus}
-        onClose={closeEditStatusModal}
-        className="max-w-[520px] p-5 lg:p-10"
-      >
-        <h4 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
-          تعديل حالة المزاد
-        </h4>
+      <Modal isOpen={!!editingStatus} onClose={closeEditStatusModal} className="max-w-[520px] p-5 lg:p-10">
+        <h4 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">تعديل حالة المزاد</h4>
         {editingStatus && (
           <>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="edit-status-name-key">
-                  مفتاح اسم الحالة <span className="text-red-500">*</span>
-                </Label>
-                <input
-                  id="edit-status-name-key"
-                  type="text"
-                  value={editStatusNameKey}
-                  onChange={(e) => {
-                    setEditStatusNameKey(e.target.value);
-                    if (updateStatusError) setUpdateStatusError(null);
-                  }}
-                  placeholder="مثال: TEST_2"
-                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30"
-                  disabled={updateStatusSubmitting}
-                />
+                <Label htmlFor="edit-status-name-key">مفتاح اسم الحالة <span className="text-red-500">*</span></Label>
+                <input id="edit-status-name-key" type="text" value={editStatusNameKey} onChange={(e) => {
+                  setEditStatusNameKey(e.target.value);
+                  if (updateStatusError) setUpdateStatusError(null);
+                }} placeholder="مثال: TEST_2" className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400
+                dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30" disabled={updateStatusSubmitting} />
               </div>
 
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <Label>
-                    الترجمات <span className="text-red-500">*</span>
-                  </Label>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={addEditStatusTranslation}
-                    disabled={updateStatusSubmitting || editStatusTranslations.length >= LANGUAGE_OPTIONS.length}
-                  >
+                  <Label>الترجمات <span className="text-red-500">*</span></Label>
+                  <Button size="sm" variant="outline" onClick={addEditStatusTranslation} disabled={updateStatusSubmitting || editStatusTranslations.length >= LANGUAGE_OPTIONS.length}>
                     إضافة لغة
                   </Button>
                 </div>
@@ -1011,12 +702,8 @@ export default function AdminAuctionManagement() {
                     <div key={index} className="flex flex-wrap items-end gap-2">
                       <div className="min-w-[100px] flex-1">
                         <label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">اللغة</label>
-                        <select
-                          value={tr.language_code}
-                          onChange={(e) => updateEditStatusTranslation(index, "language_code", e.target.value)}
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white/90"
-                          disabled={updateStatusSubmitting}
-                        >
+                        <select value={tr.language_code} onChange={(e) => updateEditStatusTranslation(index, "language_code", e.target.value)} className="w-full rounded-lg border border-gray-200
+                        bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white/90" disabled={updateStatusSubmitting}>
                           {LANGUAGE_OPTIONS.filter((o) => o.value === tr.language_code || !editStatusTranslations.some((t, i) => i !== index && t.language_code === o.value)).map((o) => (
                             <option key={o.value} value={o.value}>{o.label}</option>
                           ))}
@@ -1024,22 +711,13 @@ export default function AdminAuctionManagement() {
                       </div>
                       <div className="min-w-[140px] flex-1">
                         <label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">اسم الحالة المترجم</label>
-                        <input
-                          type="text"
-                          value={tr.translated_status_name}
-                          onChange={(e) => updateEditStatusTranslation(index, "translated_status_name", e.target.value)}
-                          placeholder="مثال: الاختبار الثاني"
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30"
-                          disabled={updateStatusSubmitting}
-                        />
+                        <input type="text" value={tr.translated_status_name} onChange={(e) => updateEditStatusTranslation(index, "translated_status_name", e.target.value)}
+                        placeholder="مثال: الاختبار الثاني" className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400
+                        dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:placeholder:text-white/30" disabled={updateStatusSubmitting} />
                       </div>
                       {editStatusTranslations.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeEditStatusTranslation(index)}
-                          className="rounded-lg border border-red-200 px-2 py-2 text-sm text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
-                          disabled={updateStatusSubmitting}
-                        >
+                        <button type="button" onClick={() => removeEditStatusTranslation(index)} className="rounded-lg border border-red-200 px-2 py-2 text-sm text-red-600 hover:bg-red-50
+                        dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20" disabled={updateStatusSubmitting}>
                           حذف
                         </button>
                       )}
@@ -1052,19 +730,10 @@ export default function AdminAuctionManagement() {
               <p className="mt-3 text-sm text-red-600 dark:text-red-400">{updateStatusError}</p>
             )}
             <div className="mt-6 flex gap-3 justify-end">
-              <Button size="sm" variant="outline" onClick={closeEditStatusModal} disabled={updateStatusSubmitting}>
-                إلغاء
-              </Button>
-              <Button
-                size="sm"
-                className="bg-purple-500 hover:bg-purple-600"
-                onClick={handleUpdateAuctionStatus}
-                disabled={
-                  !editStatusNameKey.trim() ||
-                  !editStatusTranslations.some((t) => t.translated_status_name.trim()) ||
-                  updateStatusSubmitting
-                }
-              >
+              <Button size="sm" variant="outline" onClick={closeEditStatusModal} disabled={updateStatusSubmitting}>إلغاء</Button>
+              <Button size="sm" className="bg-purple-500 hover:bg-purple-600" onClick={handleUpdateAuctionStatus} disabled={
+                !editStatusNameKey.trim() || !editStatusTranslations.some((t) => t.translated_status_name.trim()) || updateStatusSubmitting
+              }>
                 {updateStatusSubmitting ? "جاري الحفظ..." : "حفظ التغييرات"}
               </Button>
             </div>
