@@ -128,7 +128,12 @@ export default function AuctionManagement() {
       const data: ApiAuction[] = response.data;
       setAuctions(data || []);
     } catch (error) {
-      setError((error as AxiosError)?.response?.data?.detail);
+      const axiosError = error as AxiosError;
+      const detail =
+        (axiosError?.response?.data as { detail?: string })?.detail ??
+        axiosError.message ??
+        "حدث خطأ أثناء جلب المزادات";
+      setError(detail);
     } finally {
       setIsLoading(false);
     }
@@ -150,7 +155,8 @@ export default function AuctionManagement() {
       }
       await fetchAuctions();
     } catch (error) {
-      setError((error as AxiosError)?.response?.data?.detail);
+      const axiosError = error as AxiosError;
+      setError(axiosError.message as string);
     } finally {
       setDeletingAuctionId(null);
     }

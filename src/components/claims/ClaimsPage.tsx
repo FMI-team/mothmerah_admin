@@ -137,7 +137,8 @@ export default function ClaimsPage() {
       const data: ApiClaim[] = response.data;
       setClaims((data || []).map(mapApiClaimToClaim));
     } catch (err) {
-      setError((err as AxiosError).response?.data?.message?.detail);
+      const axiosError = err as AxiosError;
+      setError(axiosError.message as string);
     } finally {
       setLoading(false);
     }
@@ -214,7 +215,8 @@ export default function ClaimsPage() {
       }
       closeDecisionModal();
     } catch (err) {
-      setDecisionError((err as AxiosError).response?.data?.message?.detail);
+      const axiosError = err as AxiosError;
+      setDecisionError(axiosError.message as string);
     } finally {
       setDecisionSubmitting(false);
     }
@@ -236,7 +238,8 @@ export default function ClaimsPage() {
       setClaims((prev) => prev.map((c) => c.id === selectedClaim.id ? { ...c, status: newLabel as ClaimStatus } : c));
       closeStatusModal();
     } catch (err) {
-      setStatusUpdateError((err as AxiosError).response?.data?.message?.detail);
+      const axiosError = err as AxiosError;
+      setStatusUpdateError(axiosError.message as string);
     } finally {
       setStatusUpdating(false);
     }
@@ -253,7 +256,8 @@ export default function ClaimsPage() {
       }
       setNoteText("");
     } catch (err) {
-      setCommentError((err as AxiosError).response?.data?.message?.detail);
+      const axiosError = err as AxiosError;
+      setCommentError(axiosError.message as string);
     } finally {
       setCommentSubmitting(false);
     }

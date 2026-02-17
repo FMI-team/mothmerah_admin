@@ -214,8 +214,8 @@ export default function UserManagement() {
       const data = response.data;
       setUsers(data || []);
     } catch (err) {
-      console.error("Error fetching users:", err);
-      setError((err as AxiosError).response?.data?.message);
+      const axiosError = err as AxiosError;
+      setError(axiosError.message as string);
     } finally {
       setIsLoading(false);
     }
@@ -263,7 +263,8 @@ export default function UserManagement() {
       const response = await deleteUser(userId)
 
       if (response.status !== 200) {
-        throw new Error((response.data as AxiosError).response?.data?.message);
+        const axiosError = response.data as AxiosError;
+        throw new Error(axiosError.message as string);
       }
 
       setUsers((prevUsers) => prevUsers.filter((user) => user.user_id !== userId));
@@ -272,7 +273,8 @@ export default function UserManagement() {
 
       setError(null);
     } catch (err) {
-      setError((err as AxiosError).response?.data?.message);
+      const axiosError = err as AxiosError;
+      setError(axiosError.message as string);
     }
   };
 
@@ -324,13 +326,15 @@ export default function UserManagement() {
       const response = await createUser(newUserForm)
 
       if (response.status !== 200) {
-        throw new Error((response.data as AxiosError).response?.data?.message);
+        const axiosError = response.data as AxiosError;
+        throw new Error(axiosError.message as string);
       }
 
       handleCloseCreateUserModal();
       await fetchUsers();
     } catch (err) {
-      setCreateUserError((err as AxiosError).response?.data?.message);
+      const axiosError = err as AxiosError;
+      setCreateUserError(axiosError.message as string);
     } finally {
       setIsCreatingUser(false);
     }
@@ -349,7 +353,8 @@ export default function UserManagement() {
       const response = await updateUserStatus(selectedUserForStatusChange.user_id, {new_status_id: selectedStatusId, reason_for_change: reasonForChange})
 
       if (response.status !== 200) {
-        throw new Error((response.data as AxiosError).response?.data?.message);
+        const axiosError = response.data as AxiosError;
+        throw new Error(axiosError.message as string);
       }
 
       const updatedUser: User = response.data;
@@ -358,7 +363,8 @@ export default function UserManagement() {
       );
       handleCloseStatusModal();
     } catch (err) {
-      setError((err as AxiosError).response?.data?.message);
+      const axiosError = err as AxiosError;
+      setError(axiosError.message as string);
     } finally {
       setIsChangingStatus(false);
     }

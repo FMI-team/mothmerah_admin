@@ -80,7 +80,8 @@ export default function EditAuctionForm() {
       setStartingPricePerUnit(String(data.starting_price_per_unit));
       setMinimumBidIncrement(String(data.minimum_bid_increment));
     } catch (error) {
-      setError((error as AxiosError)?.response?.data?.detail);
+      const axiosError = error as AxiosError;
+      setError(axiosError.message as string);
     } finally {
       setIsLoading(false);
     }
@@ -117,7 +118,8 @@ export default function EditAuctionForm() {
       const basePath = pathname?.replace(/\/edit$/, "") || "";
       router.push(basePath ? `${basePath}` : `/wholesaler/auctions/${auctionId}`);
     } catch (error) {
-      setError((error as AxiosError)?.response?.data?.detail);
+      const axiosError = error as AxiosError;
+      setError(axiosError.message as string);
     } finally {
       setIsSubmitting(false);
     }

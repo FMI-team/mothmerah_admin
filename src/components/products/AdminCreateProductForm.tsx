@@ -146,7 +146,8 @@ export default function AdminCreateProductForm({
       const data: Category[] = response.data;
       setCategories(data);
     } catch (err) {
-      setError((err as AxiosError).response?.data?.message?.detail);
+      const axiosError = err as AxiosError;
+      setError(axiosError.message as string);
     } finally {
       setIsLoadingCategories(false);
     }
@@ -169,7 +170,8 @@ export default function AdminCreateProductForm({
         setSellerUserId(wholesalers[0].user_id);
       }
     } catch (err) {
-      setError((err as AxiosError).response?.data?.message?.detail);
+      const axiosError = err as AxiosError;
+      setError(axiosError.message as string);
       setWholesalerUsers([]);
     } finally {
       setIsLoadingWholesalers(false);
@@ -198,7 +200,8 @@ export default function AdminCreateProductForm({
         await fetchWholesalerUsers();
       }
     } catch (err) {
-      setError((err as AxiosError).response?.data?.message?.detail);
+      const axiosError = err as AxiosError;
+      setError(axiosError.message as string);
     }
   }, [fetchWholesalerUsers]);
 
@@ -349,7 +352,8 @@ export default function AdminCreateProductForm({
       await Promise.resolve(onSuccess?.(createdProduct));
       onClose();
     } catch (err) {
-      setError((err as AxiosError).response?.data?.message?.detail);
+      const axiosError = err as AxiosError;
+      setError(axiosError.message as string);
     } finally {
       setIsSubmitting(false);
     }

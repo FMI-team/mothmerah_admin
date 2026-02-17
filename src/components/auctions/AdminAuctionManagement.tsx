@@ -168,8 +168,10 @@ export default function AdminAuctionManagement() {
       setAuctions(data || []);
       setIsLoading(false);
     } catch (err) {
-      setError((err as AxiosError).response?.data?.message?.detail || 'حدث خطأ في جلب بيانات المزادات');
+      const axiosError = err as AxiosError;
+      setError(axiosError.message as string);
       setAuctions([]);
+      setIsLoading(false);
     }
   }, []);
 
@@ -258,7 +260,8 @@ export default function AdminAuctionManagement() {
       }
       await fetchAuctionStatuses();
     } catch (err) {
-      setError((err as AxiosError).response?.data?.message?.detail || 'فشل حذف الحالة');
+      const axiosError = err as AxiosError;
+      setError(axiosError.message as string);
     } finally {
       setDeletingStatusId(null);
     }
@@ -293,7 +296,8 @@ export default function AdminAuctionManagement() {
       await fetchAuctionStatuses();
       closeEditStatusModal();
     } catch (err) {
-      setUpdateStatusError((err as AxiosError).response?.data?.message?.detail || 'فشل تحديث الحالة');
+      const axiosError = err as AxiosError;
+      setUpdateStatusError(axiosError.message as string);
     } finally {
       setUpdateStatusSubmitting(false);
     }
@@ -328,7 +332,8 @@ export default function AdminAuctionManagement() {
       await fetchAuctionStatuses();
       closeCreateStatusModal();
     } catch (err) {
-      setCreateStatusError(err instanceof Error ? err.message : "فشل إنشاء الحالة");
+      const axiosError = err as AxiosError;
+      setCreateStatusError(axiosError.message as string);
     } finally {
       setCreateStatusSubmitting(false);
     }
@@ -346,7 +351,8 @@ export default function AdminAuctionManagement() {
       }
       await fetchAuctions();
     } catch (err) {
-      setError((err as AxiosError).response?.data?.message?.detail || 'حدث خطأ في حذف المزاد');
+      const axiosError = err as AxiosError;
+      setError(axiosError.message as string);
     } finally {
       setDeletingAuctionId(null);
     }

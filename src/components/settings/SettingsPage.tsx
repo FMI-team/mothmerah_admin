@@ -1,9 +1,12 @@
+/* eslint-disable @next/next/no-img-element */
+
 "use client";
+
 import React, { useState, useEffect } from "react";
 import Label from "../form/Label";
 import Button from "../ui/button/Button";
 import Switch from "../form/switch/Switch";
-import { getAuthHeader } from "../../../services/auth";
+import { fetchAndStoreUserInfo, updateUserInfo } from "../../../services/auth";
 
 interface UserData {
   phone_number: string;
@@ -71,7 +74,6 @@ export default function SettingsPage() {
   const [isSavingFeatures, setIsSavingFeatures] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [userData, setUserData] = useState<UserData | null>(null);
 
   useEffect(() => {
@@ -80,38 +82,24 @@ export default function SettingsPage() {
       setError(null);
 
       try {
-        const authHeader = getAuthHeader();
-        const response = await fetch("https://api-testing.mothmerah.sa/api/v1/users/me", {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeader,
-          },
-        });
+        const response = await fetchAndStoreUserInfo();
 
-        if (!response.ok) {
+        if (response.status !== 200) {
           throw new Error("Failed to fetch user data");
         }
 
-        const data: UserData[] | UserData = await response.json();
+        const data: UserData[] | UserData = response.data;
 
-        // Handle both array and single object responses
         const user = Array.isArray(data) ? data[0] : data;
 
         if (user) {
           setUserData(user);
-          // Use user email as contact email if available
           if (user.email) {
             setContactEmail(user.email);
           }
-          // Use profile picture as logo preview if available
           if (user.profile_picture_url) {
             setLogoPreview(user.profile_picture_url);
           }
-          // You can also use user.first_name and user.last_name for platform name if needed
-          // if (user.first_name && user.last_name) {
-          //   setPlatformName(`${user.first_name} ${user.last_name}`);
-          // }
         }
       } catch (err) {
         console.error("Error fetching user data:", err);
@@ -144,45 +132,20 @@ export default function SettingsPage() {
     setError(null);
 
     try {
-      const authHeader = getAuthHeader();
-      const response = await fetch("https://api-testing.mothmerah.sa/api/v1/users/me", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeader,
-        },
-        body: JSON.stringify({
-          email: contactEmail,
-        }),
+      const response = await updateUserInfo({
+        first_name: userData?.first_name || "",
+        last_name: userData?.last_name || "",
+        phone_number: userData?.phone_number || "",
+        email: contactEmail,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-
-        // Handle validation errors
-        if (errorData.detail && Array.isArray(errorData.detail)) {
-          const errorMessages = errorData.detail
-            .map((err: { msg: string; loc: string[] }) => err.msg)
-            .join(", ");
-          throw new Error(errorMessages || "فشل في تحديث البيانات");
-        }
-
-        throw new Error(
-          errorData.message ||
-          errorData.detail ||
-          "فشل في تحديث البيانات"
-        );
+      if (response.status !== 200) {
+        throw new Error(response.data.message);
       }
 
-      const updatedData: UserData[] | UserData = await response.json();
-      const updatedUser = Array.isArray(updatedData) ? updatedData[0] : updatedData;
+      setUserData(response.data);
+      setContactEmail(response.data.email);
 
-      if (updatedUser) {
-        setUserData(updatedUser);
-        setContactEmail(updatedUser.email);
-      }
-
-      // Show success message (you can replace this with a toast notification)
       setError(null);
       alert("تم حفظ التغييرات بنجاح");
     } catch (err) {
@@ -199,7 +162,6 @@ export default function SettingsPage() {
 
   const handleSaveFeatures = async () => {
     setIsSavingFeatures(true);
-    // Simulate API call
     await new Promise((resolve) => setTimeout(resolve, 1000));
     setIsSavingFeatures(false);
     alert("تم حفظ التغييرات بنجاح");
@@ -207,7 +169,6 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
           الاعدادات العامة
@@ -217,14 +178,12 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {/* Error Message */}
       {error && (
         <div className="rounded-lg border border-error-200 bg-error-50 p-4 text-sm text-error-600 dark:border-error-800 dark:bg-error-900/20 dark:text-error-400">
           {error}
         </div>
       )}
 
-      {/* Loading State */}
       {isLoading && (
         <div className="flex items-center justify-center py-12">
           <div className="text-gray-500 dark:text-gray-400">
@@ -233,7 +192,6 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Basic Information Section */}
       {!isLoading && (
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 sm:p-6">
           <div className="mb-6">
@@ -246,7 +204,6 @@ export default function SettingsPage() {
           </div>
 
           <div className="space-y-5">
-            {/* Platform Name */}
             <div>
               <Label htmlFor="platform-name">اسم المنصة</Label>
               <input
@@ -255,11 +212,11 @@ export default function SettingsPage() {
                 value={platformName}
                 onChange={(e) => setPlatformName(e.target.value)}
                 placeholder="أدخل اسم المنصة"
-                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
+                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300
+                focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
               />
             </div>
 
-            {/* Contact Email */}
             <div>
               <Label htmlFor="contact-email">البريد الالكتروني للتواصل</Label>
               <input
@@ -268,18 +225,17 @@ export default function SettingsPage() {
                 value={contactEmail}
                 onChange={(e) => setContactEmail(e.target.value)}
                 placeholder="example@email.com"
-                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
+                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300
+                focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800"
               />
             </div>
 
-            {/* Platform Logo */}
             <div>
               <Label>شعار المنصة</Label>
               <div className="mt-2 space-y-3">
                 <div className="flex items-center gap-4">
                   <div className="flex h-32 w-32 items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-purple-50 dark:border-gray-700 dark:bg-purple-900/20">
                     {logoPreview ? (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={logoPreview}
                         alt="Platform Logo"
@@ -314,7 +270,8 @@ export default function SettingsPage() {
                   />
                   <label
                     htmlFor="logo-upload"
-                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-purple-100 px-4 py-2.5 text-sm font-medium text-purple-700 transition-colors hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50"
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-purple-100 px-4 py-2.5 text-sm font-medium text-purple-700 transition-colors hover:bg-purple-200
+                    dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50"
                   >
                     <svg
                       className="h-4 w-4"
@@ -335,7 +292,6 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Save Button */}
             <div className="pt-4">
               <Button
                 size="sm"
@@ -349,7 +305,6 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Platform Features Section */}
       {!isLoading && (
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 sm:p-6">
           <div className="mb-6">
@@ -362,7 +317,6 @@ export default function SettingsPage() {
           </div>
 
           <div className="space-y-6">
-            {/* User Reviews Toggle */}
             <div className="flex items-start justify-between gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
               <div className="flex-1">
                 <div className="mb-2">
@@ -379,7 +333,6 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Additional Feature Toggle Example */}
             <div className="flex items-start justify-between gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
               <div className="flex-1">
                 <div className="mb-2">
@@ -395,7 +348,6 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Another Feature Toggle */}
             <div className="flex items-start justify-between gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
               <div className="flex-1">
                 <div className="mb-2">
@@ -411,7 +363,6 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Save Button */}
             <div className="pt-4">
               <Button
                 size="sm"

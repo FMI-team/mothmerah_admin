@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, SubmitEvent } from "react";
-import { DownloadIcon } from "@/icons";
 import Badge from "../ui/badge/Badge";
 import Button from "../ui/button/Button";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
@@ -84,7 +83,8 @@ export default function WholesalerInventoryPage() {
       const data: ApiInventoryItem[] = response.data;
       setItems(data || []);
     } catch (error) {
-      setError((error as AxiosError)?.response?.data?.detail || "حدث خطأ في جلب المخزون");
+      const axiosError = error as AxiosError;
+      setError(axiosError.message as string);
     } finally {
       setIsLoading(false);
     }
@@ -124,7 +124,8 @@ export default function WholesalerInventoryPage() {
       closeAdjustModal();
       await fetchInventory();
     } catch (error) {
-      setAdjustError((error as AxiosError)?.response?.data?.detail);
+      const axiosError = error as AxiosError;
+      setAdjustError(axiosError.message as string);
     } finally {
       setIsAdjusting(false);
     }
