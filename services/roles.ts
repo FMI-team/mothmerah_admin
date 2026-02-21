@@ -14,3 +14,20 @@ export async function removeRole(role_id: number) {
   const response = await api.delete(`admin/rbac/roles/${role_id}`)
   return response
 }
+
+export async function readPermissionOfRole(role_id: number) {
+  const response = await api.get(`admin/rbac/roles/${role_id}`)
+  return response
+}
+
+export async function readAllPermissions() {
+  const response = await api.get('admin/rbac/permissions')
+  return response
+}
+
+export async function assignPermissionToRole(role_id: number, permission_ids: number[]) {
+  const response = await api.post(`admin/rbac/roles/${role_id}/permissions/${permission_ids[0]}`)
+  console.log(response)
+  console.log(permission_ids[0])
+  return response;
+}

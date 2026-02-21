@@ -13,13 +13,18 @@ interface CurrentUser {
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState<CurrentUser | null>(null);
-
+  
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
         const userInfo = await fetchAndStoreUserInfo();
         if (!userInfo) {
           console.error("Failed to fetch current user");
+          return;
+        }
+
+        if ((userInfo.status as number) === 401) {
+          logout();
           return;
         }
 
