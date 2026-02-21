@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import React from "react";
 import ReportsPage from "@/components/reports/ReportsPage";
 
 export const metadata: Metadata = {
@@ -10,4 +9,3 @@ export const metadata: Metadata = {
 export default function Reports() {
   return <ReportsPage />;
 }
-

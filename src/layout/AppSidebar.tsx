@@ -80,6 +80,11 @@ const adminNavItems: NavItem[] = [
     name: "تذاكر الدعم",
     path: "/admin/support",
   },
+  {
+    icon: <GroupIcon />,
+    name: "ادارة الادوار",
+    path: "/admin/roles",
+  },
 ];
 
 const wholesalerNavItems: NavItem[] = [

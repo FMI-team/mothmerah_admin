@@ -23,4 +23,4 @@ export async function createUser(user: unknown) {
 export async function updateUserStatus(userId: string, data: {new_status_id: number, reason_for_change: string}) {
     const response = await api.patch(`admin/users/${userId}/status`, data)
     return response
-  }
+}
