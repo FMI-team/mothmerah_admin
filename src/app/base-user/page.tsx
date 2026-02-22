@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
-import React from "react";
-import DashboardOverview from "@/components/dashboard/DashboardOverview";
-import SalesChart from "@/components/dashboard/SalesChart";
-import TopSellingCategories from "@/components/dashboard/TopSellingCategories";
-import LatestActivity from "@/components/dashboard/LatestActivity";
+import BaseUserDashboardOverview from "@/components/dashboard/BaseUserDashboardOverview";
+import BaseUserLatestActivity from "@/components/dashboard/BaseUserLatestActivity";
 
 export const metadata: Metadata = {
   title: "لوحة التحكم | Base User Dashboard",
@@ -14,19 +11,11 @@ export default function BaseUserDashboard() {
   return (
     <div className="grid grid-cols-12 gap-4 md:gap-6">
       <div className="col-span-12">
-        <DashboardOverview />
-      </div>
-
-      <div className="col-span-12">
-        <SalesChart />
-      </div>
-
-      <div className="col-span-12 xl:col-span-7">
-        <TopSellingCategories />
+        <BaseUserDashboardOverview />
       </div>
 
       <div className="col-span-12 xl:col-span-5">
-        <LatestActivity />
+        <BaseUserLatestActivity />
       </div>
     </div>
   );

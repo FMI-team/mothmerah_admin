@@ -1,13 +1,13 @@
-import AuctionDetailView from "@/components/auctions/AuctionDetailView";
+import BaseUserAuctionDetailView from "@/components/auctions/BaseUserAuctionDetailView";
 import { Metadata } from "next";
-import React, { Suspense } from "react";
+import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "تفاصيل المزاد | Auction Details",
   description: "عرض تفاصيل المزاد",
 };
 
-export default function AuctionDetail() {
+export default function BaseUserAuctionDetail() {
   return (
     <div>
       <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 lg:p-6">
@@ -18,7 +18,7 @@ export default function AuctionDetail() {
             </div>
           </div>
         }>
-          <AuctionDetailView />
+          <BaseUserAuctionDetailView />
         </Suspense>
       </div>
     </div>

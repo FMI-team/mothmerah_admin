@@ -26,6 +26,11 @@ export async function readAuctionById(auctionId: string) {
   return response;
 }
 
+export async function readAuctionBidsById(auctionId: string) {
+  const response = await api.get(`api/v1/auctions/${auctionId}/bids`);
+  return response;
+}
+
 export async function updateAuctionById(auctionId: string, data:unknown) {
   const response = await api.patch(`api/v1/auctions/${auctionId}`, data);
   return response;

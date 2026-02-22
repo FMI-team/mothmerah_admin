@@ -1,4 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -103,7 +104,7 @@ const formatDate = (dateString: string): string => {
       month: "long",
       day: "numeric",
       hour: "2-digit",
-      minute: "2-digit",
+      minute: "2-digit"
     }).format(date);
   } catch {
     return dateString;
@@ -217,9 +218,7 @@ export default function AuctionDetailView() {
     setIsDeleting(true);
     setError(null);
     try {
-      await deleteAuctionById(
-        auction.auction_id
-      );
+      await deleteAuctionById(auction.auction_id);
       router.push(listHref);
     } catch (err) {
       console.log(err);

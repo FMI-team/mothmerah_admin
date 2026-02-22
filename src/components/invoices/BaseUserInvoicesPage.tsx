@@ -1,18 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { PencilIcon, MoreDotIcon } from "@/icons";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 import Badge from "../ui/badge/Badge";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
-import { Dropdown } from "../ui/dropdown/Dropdown";
-import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import Button from "../ui/button/Button";
-import api from "@/utils/api";
 
 interface Invoice {
   id: string;
   invoiceNumber: string;
   clientName: string;
+  clientEmail?: string;
   amount: string;
   status: "مدفوعة" | "قيد الانتظار" | "متأخرة";
   issueDate: string;
@@ -30,6 +29,32 @@ interface Invoice {
     amount: string;
     method: string;
   }>;
+  logoUrl?: string;
+  checkoutUrl?: string;
+}
+
+interface MoyasarPaymentSource {
+  type?: string;
+  company?: string;
+  name?: string;
+  number?: string;
+}
+
+interface MoyasarPayment {
+  id: string;
+  status: string;
+  amount: number;
+  amount_format: string;
+  created_at: string;
+  source?: MoyasarPaymentSource | null;
+}
+
+interface MoyasarMetadata {
+  customer_id?: string;
+  customer_email?: string;
+  cart_id?: string;
+  client_name?: string;
+  [key: string]: unknown;
 }
 
 interface MoyasarInvoice {
@@ -39,27 +64,18 @@ interface MoyasarInvoice {
   currency: string;
   description: string;
   amount_format: string;
-  url: string;
-  callback_url: string | null;
+  logo_url?: string | null;
+  url?: string | null;
+  callback_url?: string | null;
   expired_at: string;
   created_at: string;
   updated_at: string;
-  back_url: string | null;
-  success_url: string | null;
-  payment_id: string | null;
-  paid_at: string | null;
-  metadata: unknown | null;
-}
-
-interface MoyasarResponse {
-  invoices: MoyasarInvoice[];
-  meta: {
-    current_page: number;
-    next_page: number | null;
-    prev_page: number | null;
-    total_pages: number;
-    total_count: number;
-  };
+  back_url?: string | null;
+  success_url?: string | null;
+  payment_id?: string | null;
+  paid_at?: string | null;
+  metadata?: MoyasarMetadata | null;
+  payments?: MoyasarPayment[] | null;
 }
 
 const formatDate = (dateString: string): string => {
@@ -89,32 +105,61 @@ const mapMoyasarStatusToInvoiceStatus = (status: string): "مدفوعة" | "قي
   }
 };
 
+function paymentMethodFromSource(source?: MoyasarPaymentSource | null): string {
+  if (!source) return "—";
+  const parts: string[] = [];
+  if (source.company) parts.push(source.company);
+  if (source.name) parts.push(source.name);
+  if (source.number) parts.push(`****${source.number.slice(-4)}`);
+  if (source.type && !parts.length) parts.push(source.type);
+  return parts.length ? parts.join(" · ") : "بطاقة ائتمانية";
+}
+
 const mapMoyasarInvoiceToInvoice = (moyasarInvoice: MoyasarInvoice): Invoice => {
   const amountInSAR = moyasarInvoice.amount / 100;
   const subtotal = amountInSAR * 0.92;
   const tax = amountInSAR * 0.08;
-  
+  const meta = moyasarInvoice.metadata ?? null;
+  const clientName = (meta?.client_name as string) ?? (meta?.customer_id as string) ?? (meta?.customer_email as string) ?? "عميل";
+  const clientEmail = meta?.customer_email as string | undefined;
+
+  let payments: Invoice["payments"] = [];
+  if (moyasarInvoice.payments && Array.isArray(moyasarInvoice.payments)) {
+    payments = moyasarInvoice.payments.map((p) => ({
+      date: formatDate(p.created_at),
+      amount: p.amount_format ?? `${(p.amount / 100).toFixed(2)} SAR`,
+      method: paymentMethodFromSource(p.source),
+    }));
+  } else if (moyasarInvoice.paid_at) {
+    payments = [
+      {
+        date: formatDate(moyasarInvoice.paid_at),
+        amount: moyasarInvoice.amount_format ?? `${amountInSAR.toFixed(2)} ${moyasarInvoice.currency}`,
+        method: "بطاقة ائتمانية",
+      },
+    ];
+  }
+
   return {
     id: moyasarInvoice.id,
     invoiceNumber: `#INV-${moyasarInvoice.id.substring(0, 8).toUpperCase()}`,
-    clientName: moyasarInvoice.metadata && typeof moyasarInvoice.metadata === 'object' && moyasarInvoice.metadata !== null
-    ? (moyasarInvoice.metadata as { client_name?: string }).client_name || "عميل" : "عميل",
+    clientName,
+    clientEmail,
     amount: `${amountInSAR.toFixed(2)} ${moyasarInvoice.currency}`,
     status: mapMoyasarStatusToInvoiceStatus(moyasarInvoice.status),
     issueDate: formatDate(moyasarInvoice.created_at),
     dueDate: formatDate(moyasarInvoice.expired_at),
-    items: moyasarInvoice.description ? [{ name: moyasarInvoice.description, quantity: "1", price: `${amountInSAR.toFixed(2)} ${moyasarInvoice.currency}` }]
-    : [{ name: "فاتورة", quantity: "1", price: `${amountInSAR.toFixed(2)} ${moyasarInvoice.currency}` }],
+    items: moyasarInvoice.description
+      ? [{ name: moyasarInvoice.description, quantity: "1", price: `${amountInSAR.toFixed(2)} ${moyasarInvoice.currency}` }]
+      : [{ name: "فاتورة", quantity: "1", price: `${amountInSAR.toFixed(2)} ${moyasarInvoice.currency}` }],
     subtotal: `${subtotal.toFixed(2)} ${moyasarInvoice.currency}`,
     tax: `${tax.toFixed(2)} ${moyasarInvoice.currency}`,
-    total: moyasarInvoice.amount_format || `${amountInSAR.toFixed(2)} ${moyasarInvoice.currency}`,
-    payments: moyasarInvoice.paid_at
-    ? [{ date: formatDate(moyasarInvoice.paid_at), amount: moyasarInvoice.amount_format || `${amountInSAR.toFixed(2)} ${moyasarInvoice.currency}`, method: "بطاقة ائتمانية" }] : [],
+    total: moyasarInvoice.amount_format ?? `${amountInSAR.toFixed(2)} ${moyasarInvoice.currency}`,
+    payments,
+    logoUrl: moyasarInvoice.logo_url ?? undefined,
+    checkoutUrl: moyasarInvoice.url ?? undefined
   };
 };
-
-const MOYASAR_API_KEY = "sk_test_8zMhNR3zp77KvSjxPQMweWy3ZjFXtFP1cwiCx7oV";
-const MOYASAR_API_SECRET = "@Wmnkdr123";
 
 export default function BaseUserInvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -123,7 +168,9 @@ export default function BaseUserInvoicesPage() {
   const [selectedStatus, setSelectedStatus] = useState("الكل");
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-  const [actionDropdownOpen, setActionDropdownOpen] = useState<string | null>(null);
+  const [invoiceDetails, setInvoiceDetails] = useState<Invoice | null>(null);
+  const [invoiceDetailsLoading, setInvoiceDetailsLoading] = useState(false);
+  const [invoiceDetailsError, setInvoiceDetailsError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -132,37 +179,63 @@ export default function BaseUserInvoicesPage() {
   const fetchInvoices = useCallback(async (page: number = 1) => {
     setIsLoading(true);
     setError(null);
-    
     try {
-      const credentials = btoa(`${MOYASAR_API_KEY}:${MOYASAR_API_SECRET}`);
-      
-      const response = await api.get(`https://api.moyasar.com/v1/invoices?page=${page}`, {
+      const res = await fetch(`https://api.moyasar.com/v1/invoices?page=${page}`, {
+        method: "GET",
         headers: {
-          "Authorization": `Basic ${credentials}`,
+          Authorization: `Basic ${process.env.NEXT_PUBLIC_CREDENTIALS}`,
           "Content-Type": "application/json",
-        },
+        }
       });
-
-      if (response.status !== 200) {
-        throw new Error("فشل في جلب الفواتير من Moyasar");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error((data as { error?: string }).error ?? "فشل في جلب الفواتير");
       }
-
-      const data: MoyasarResponse = response.data;
-      
-      const mappedInvoices = data.invoices.map(mapMoyasarInvoiceToInvoice);
-      setInvoices(mappedInvoices);
-      setTotalPages(data.meta.total_pages);
-      setTotalItems(data.meta.total_count);
-      
-      if (mappedInvoices.length > 0 && !selectedInvoice) {
-        setSelectedInvoice(mappedInvoices[0]);
+      if (!data.invoices || !Array.isArray(data.invoices)) {
+        throw new Error("استجابة غير صالحة");
       }
+      setInvoices(data.invoices.map(mapMoyasarInvoiceToInvoice));
+      setTotalPages(data.meta?.total_pages ?? 1);
+      setTotalItems(data.meta?.total_count ?? 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : "حدث خطأ في جلب بيانات الفواتير");
     } finally {
       setIsLoading(false);
     }
-  }, [selectedInvoice]);
+  }, []);
+
+  const fetchInvoiceDetails = useCallback(async (invoiceId: string) => {
+    setInvoiceDetailsError(null);
+    setInvoiceDetailsLoading(true);
+    try {
+      const res = await fetch(`https://api.moyasar.com/v1/invoices/${encodeURIComponent(invoiceId)}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Basic ${process.env.NEXT_PUBLIC_CREDENTIALS}`,
+          "Content-Type": "application/json",
+        }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error((data as { error?: string }).error ?? "فشل في جلب تفاصيل الفاتورة");
+      }
+      setInvoiceDetails(mapMoyasarInvoiceToInvoice(data as MoyasarInvoice));
+    } catch (err) {
+      setInvoiceDetailsError(err instanceof Error ? err.message : "فشل في جلب التفاصيل");
+      setInvoiceDetails(null);
+    } finally {
+      setInvoiceDetailsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedInvoice) {
+      fetchInvoiceDetails(selectedInvoice.id);
+    } else {
+      setInvoiceDetails(null);
+      setInvoiceDetailsError(null);
+    }
+  }, [selectedInvoice, fetchInvoiceDetails]);
 
   useEffect(() => {
     fetchInvoices(currentPage);
@@ -224,24 +297,32 @@ export default function BaseUserInvoicesPage() {
     document.body.removeChild(link);
   };
 
-  const handleMarkAsPaid = () => {
-    if (selectedInvoice) {
-      const updatedInvoice = { ...selectedInvoice, status: "مدفوعة" as const };
-      setSelectedInvoice(updatedInvoice);
-      setInvoices((prev) =>
-        prev.map((inv: Invoice) =>
-          inv.id === selectedInvoice.id ? updatedInvoice : inv
-        )
-      );
+  const invoiceDetailRef = useRef<HTMLDivElement>(null);
+
+  const handleDownloadPDF = async () => {
+    const displayInvoice = invoiceDetails ?? selectedInvoice;
+    if (!displayInvoice) return;
+    const el = invoiceDetailRef.current;
+    if (!el) return;
+    try {
+      const canvas = await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff"
+      });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const imgRatio = canvas.width / canvas.height;
+      const h = Math.min(pageW / imgRatio, pageH);
+      const w = h * imgRatio;
+      pdf.addImage(imgData, "PNG", (pageW - w) / 2, 0, w, h);
+      pdf.save(`invoice-${displayInvoice.invoiceNumber.replace(/#/g, "")}.pdf`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "فشل إنشاء PDF");
     }
-  };
-
-  const handleSendReminder = () => {
-    alert("تم ارسال التذكير بنجاح");
-  };
-
-  const handleDownloadPDF = () => {
-    alert("جاري تحميل PDF...");
   };
 
   if (isLoading && invoices.length === 0) {
@@ -263,15 +344,9 @@ export default function BaseUserInvoicesPage() {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="lg:col-span-2 order-1 lg:order-1">
-        <div className="mb-6">
-          <p className="text-gray-500 dark:text-gray-400">
-            مرحبا بعودتك إليك نظرة عامة على السوق
-          </p>
-        </div>
 
         <button onClick={handleExportReport} className="mb-4 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors
-        hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-        > تصدير التقرير </button>
+        hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"> تصدير التقرير </button>
         <div className="mb-4 flex flex-wrap gap-2">
           {["الكل", "مدفوعة", "قيد الانتظار", "متأخرة"].map((status) => (
             <button key={status} onClick={() => {
@@ -323,42 +398,13 @@ export default function BaseUserInvoicesPage() {
                     <TableCell className="py-3">
                       <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                         <div className="relative">
-                          <button onClick={() =>
-                              setActionDropdownOpen(
-                                actionDropdownOpen === invoice.id ? null : invoice.id
-                              )
-                            }
-                            className="p-1.5 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800">
-                            <MoreDotIcon className="w-5 h-5" />
-                          </button>
-                          <Dropdown isOpen={actionDropdownOpen === invoice.id} onClose={() => setActionDropdownOpen(null)} className="absolute left-0 mt-2 w-40 p-2 z-50">
-                            <DropdownItem onItemClick={() => {
-                                setActionDropdownOpen(null);
+                          <Button onClick={() => {
                                 setSelectedInvoice(invoice);
                               }} className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5
                               dark:hover:text-gray-300">
                               عرض التفاصيل
-                            </DropdownItem>
-                            <DropdownItem onItemClick={() => {
-                                setActionDropdownOpen(null);
-                              }}className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5
-                              dark:hover:text-gray-300">
-                              تعديل
-                            </DropdownItem>
-                            <DropdownItem onItemClick={() => {
-                                setActionDropdownOpen(null);
-                              }} className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5
-                              dark:hover:text-red-300">
-                              حذف
-                            </DropdownItem>
-                          </Dropdown>
+                            </Button>
                         </div>
-                        <button onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedInvoice(invoice);
-                          }} className="p-1.5 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800">
-                          <PencilIcon className="w-5 h-5" />
-                        </button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -405,34 +451,58 @@ export default function BaseUserInvoicesPage() {
         {selectedInvoice ? (
           <div className="space-y-6">
             <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 sm:p-6">
+              {invoiceDetailsLoading && !invoiceDetails ? (
+                <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">جاري تحميل التفاصيل...</div>
+              ) : invoiceDetailsError && !invoiceDetails ? (
+                <div className="py-4 rounded-lg bg-red-50 dark:bg-red-950/30 text-sm text-red-600 dark:text-red-400">
+                  {invoiceDetailsError}
+                </div>
+              ) : (() => {
+                const displayInvoice = invoiceDetails ?? selectedInvoice;
+                if (!displayInvoice) return null;
+                return (
+                  <>
+              <div ref={invoiceDetailRef} className="bg-white dark:bg-white/3">
               <div className="mb-4">
                 <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">تفاصيل الفاتورة</h2>
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{selectedInvoice.invoiceNumber}</p>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{displayInvoice.invoiceNumber}</p>
               </div>
 
               <div className="mb-6">
-                <Badge size="sm" color={getStatusBadgeColor(selectedInvoice.status)}>{selectedInvoice.status}</Badge>
+                <Badge size="sm" color={getStatusBadgeColor(displayInvoice.status)}>{displayInvoice.status}</Badge>
               </div>
 
               <div className="mb-6 space-y-4">
                 <div>
                   <span className="text-sm text-gray-500 dark:text-gray-400">العميل</span>
-                  <p className="mt-1 font-medium text-gray-800 dark:text-white/90">{selectedInvoice.clientName}</p>
+                  <p className="mt-1 font-medium text-gray-800 dark:text-white/90">{displayInvoice.clientName}</p>
+                  {displayInvoice.clientEmail && (
+                    <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">{displayInvoice.clientEmail}</p>
+                  )}
                 </div>
                 <div>
                   <span className="text-sm text-gray-500 dark:text-gray-400">تاريخ الاصدار</span>
-                  <p className="mt-1 font-medium text-gray-800 dark:text-white/90">{selectedInvoice.issueDate}</p>
+                  <p className="mt-1 font-medium text-gray-800 dark:text-white/90">{displayInvoice.issueDate}</p>
                 </div>
                 <div>
                   <span className="text-sm text-gray-500 dark:text-gray-400">تاريخ الاستحقاق</span>
-                  <p className="mt-1 font-medium text-gray-800 dark:text-white/90">{selectedInvoice.dueDate}</p>
+                  <p className="mt-1 font-medium text-gray-800 dark:text-white/90">{displayInvoice.dueDate}</p>
                 </div>
+                {displayInvoice.checkoutUrl && (
+                  <div>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">رابط الدفع</span>
+                    <a href={displayInvoice.checkoutUrl} target="_blank" rel="noopener noreferrer" className="mt-1 block truncate text-sm font-medium text-purple-600 hover:underline
+                    dark:text-purple-400">
+                      {displayInvoice.checkoutUrl}
+                    </a>
+                  </div>
+                )}
               </div>
 
               <div className="mb-6">
                 <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">البنود</h3>
                 <div className="space-y-2">
-                  {selectedInvoice.items.map((item, index) => (
+                  {displayInvoice.items.map((item, index) => (
                     <div key={index} className="flex justify-between border-b border-gray-100 py-2 text-sm dark:border-gray-800">
                       <span className="text-gray-700 dark:text-gray-300"> {item.name} </span>
                       <span className="font-medium text-gray-800 dark:text-white/90"> {item.price} </span>
@@ -444,23 +514,23 @@ export default function BaseUserInvoicesPage() {
               <div className="mb-6 space-y-2 rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600 dark:text-gray-400"> المجموع الفرعي: </span>
-                  <span className="font-medium text-gray-800 dark:text-white/90"> {selectedInvoice.subtotal} </span>
+                  <span className="font-medium text-gray-800 dark:text-white/90"> {displayInvoice.subtotal} </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600 dark:text-gray-400"> ضريبة (%8): </span>
-                  <span className="font-medium text-gray-800 dark:text-white/90"> {selectedInvoice.tax} </span>
+                  <span className="font-medium text-gray-800 dark:text-white/90"> {displayInvoice.tax} </span>
                 </div>
                 <div className="flex justify-between border-t border-gray-200 pt-3 dark:border-gray-700">
                   <span className="text-lg font-semibold text-gray-800 dark:text-white/90"> المبلغ الاجمالي: </span>
-                  <span className="text-2xl font-bold text-gray-800 dark:text-white/90"> {selectedInvoice.total} </span>
+                  <span className="text-2xl font-bold text-gray-800 dark:text-white/90"> {displayInvoice.total} </span>
                 </div>
               </div>
 
               <div className="mb-6">
                 <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90"> سجل الدفع </h3>
-                {selectedInvoice.payments.length > 0 ? (
+                {displayInvoice.payments.length > 0 ? (
                   <div className="space-y-2">
-                    {selectedInvoice.payments.map((payment, index) => (
+                    {displayInvoice.payments.map((payment, index) => (
                       <div key={index} className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
                         <div className="mb-1 flex justify-between text-sm">
                           <span className="text-gray-600 dark:text-gray-400"> {payment.date} </span>
@@ -474,12 +544,14 @@ export default function BaseUserInvoicesPage() {
                   <p className="text-sm text-gray-500 dark:text-gray-400"> لم يتم تسجيل اي مدفوعات حتى الان </p>
                 )}
               </div>
+              </div>
 
               <div className="space-y-3 border-t border-gray-200 pt-4 dark:border-gray-800">
-                <Button size="sm" className="w-full bg-purple-500 hover:bg-purple-600" onClick={handleMarkAsPaid} disabled={selectedInvoice.status === "مدفوعة"}>وضع علامة كمدفوعة</Button>
-                <Button size="sm" variant="outline" className="w-full" onClick={handleSendReminder}>ارسال تذكير</Button>
                 <Button size="sm" variant="outline" className="w-full" onClick={handleDownloadPDF}>تنزيل PDF</Button>
               </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         ) : (
