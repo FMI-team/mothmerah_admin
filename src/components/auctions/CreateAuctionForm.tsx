@@ -74,9 +74,9 @@ export default function CreateAuctionForm({
   const fetchUser = useCallback(async () => {
     setIsLoadingUser(true);
     try {
-      const user = (await fetchAndStoreUserInfo()) as { user_id?: string; id?: string; sub?: string } | undefined;
-      const uid = user?.user_id ?? user?.id ?? user?.sub ?? "";
-      setSellerUserId(String(uid));
+      const res = await fetchAndStoreUserInfo();
+      const uid = (res as { data?: { user_id?: string } })?.data?.user_id;
+      setSellerUserId(uid ?? "");
     } catch {
       setSellerUserId("");
     } finally {

@@ -38,6 +38,39 @@ export async function getDashboardOverview(): Promise<{
   return { status: 200, data };
 }
 
+export interface WholesalerDashboardKPI {
+  value: number;
+  change?: string;
+}
+
+export interface WholesalerDashboardResponse {
+  my_products: WholesalerDashboardKPI;
+  my_auctions: WholesalerDashboardKPI;
+  my_inventory_items: WholesalerDashboardKPI;
+  available_auctions: WholesalerDashboardKPI;
+}
+
+export async function getWholesalerDashboardOverview(): Promise<{
+  status: number;
+  data: WholesalerDashboardResponse;
+}> {
+  const [productsRes, auctionsRes, inventoryRes, availableRes] = await Promise.all([
+    readMyProdcuts().catch(() => ({ status: 0, data: [] })),
+    readMyAuction().catch(() => ({ status: 0, data: [] })),
+    readMyInventory().catch(() => ({ status: 0, data: [] })),
+    readAllAvailableAuctions().catch(() => ({ status: 0, data: [] })),
+  ]);
+
+  const data: WholesalerDashboardResponse = {
+    my_products: { value: countFromResponse(productsRes) },
+    my_auctions: { value: countFromResponse(auctionsRes) },
+    my_inventory_items: { value: countFromResponse(inventoryRes) },
+    available_auctions: { value: countFromResponse(availableRes) },
+  };
+
+  return { status: 200, data };
+}
+
 export interface BaseUserDashboardKPI {
   value: number;
   change?: string;
