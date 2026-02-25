@@ -1,11 +1,101 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas";
+import { useState, useEffect, useCallback } from "react";
 import Badge from "../ui/badge/Badge";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
 import Button from "../ui/button/Button";
+import pdfMake from "pdfmake/build/pdfmake";
+
+// خطوط من public/fonts: Roboto (إنجليزي) + Cairo اختياري (عربي — إن وُجد يظهر النص العربي بشكل صحيح)
+const ROBOTO_VFS_NAMES = [
+  "Roboto-Regular.ttf",
+  "Roboto-Medium.ttf",
+  "Roboto-Bold.ttf",
+  "Roboto-Italic.ttf",
+  "Roboto-BoldItalic.ttf",
+] as const;
+const CAIRO_VFS_NAMES = ["Cairo-Regular.ttf", "Cairo-Bold.ttf"] as const;
+
+let pdfFontsLoaded = false;
+/** الخط الافتراضي للـ PDF: إن وُجدت خطوط Cairo نستخدمها للعربية، وإلا Roboto (يظهر العربي كمربعات). */
+let pdfDefaultFont = "Roboto";
+
+async function ensurePdfFontsLoaded(): Promise<void> {
+  if (pdfFontsLoaded) return;
+  const pm = pdfMake as unknown as {
+    addVirtualFileSystem: (vfs: Record<string, string>) => void;
+    addFonts: (fonts: Record<string, unknown>) => void;
+  };
+
+  const vfs: Record<string, string> = {};
+  const base =
+    typeof window !== "undefined" ? `${window.location.origin}/fonts` : "/fonts";
+
+  for (const name of ROBOTO_VFS_NAMES) {
+    const res = await fetch(`${base}/${name}`);
+    if (!res.ok) {
+      throw new Error(`خط: تعذر تحميل الملف ${name} (${res.status})`);
+    }
+    const buf = await res.arrayBuffer();
+    const b64 = btoa(
+      new Uint8Array(buf).reduce((acc, b) => acc + String.fromCharCode(b), "")
+    );
+    vfs[name] = b64;
+  }
+
+  let cairoOk = true;
+  for (const name of CAIRO_VFS_NAMES) {
+    const res = await fetch(`${base}/${name}`);
+    if (!res.ok) {
+      cairoOk = false;
+      break;
+    }
+    const buf = await res.arrayBuffer();
+    const b64 = btoa(
+      new Uint8Array(buf).reduce((acc, b) => acc + String.fromCharCode(b), "")
+    );
+    vfs[name] = b64;
+  }
+
+  pm.addVirtualFileSystem(vfs);
+  pm.addFonts({
+    Roboto: {
+      normal: "Roboto-Regular.ttf",
+      bold: "Roboto-Bold.ttf",
+      italics: "Roboto-Italic.ttf",
+      bolditalics: "Roboto-BoldItalic.ttf",
+    },
+  });
+  if (cairoOk) {
+    pm.addFonts({
+      Cairo: {
+        normal: "Cairo-Regular.ttf",
+        bold: "Cairo-Bold.ttf",
+        italics: "Cairo-Regular.ttf",
+        bolditalics: "Cairo-Bold.ttf",
+      },
+    });
+    pdfDefaultFont = "Cairo";
+  }
+  pdfFontsLoaded = true;
+}
+
+/** يحوّل رابط صورة إلى dataURL لاستخدامها في pdfMake (لا يقبل روابط مباشرة). */
+async function fetchImageAsDataUrl(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { mode: "cors" });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
 
 interface Invoice {
   id: string;
@@ -175,6 +265,10 @@ export default function BaseUserInvoicesPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const itemsPerPage = 4;
+  
+  // PDF states
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   const fetchInvoices = useCallback(async (page: number = 1) => {
     setIsLoading(true);
@@ -297,31 +391,419 @@ export default function BaseUserInvoicesPage() {
     document.body.removeChild(link);
   };
 
-  const invoiceDetailRef = useRef<HTMLDivElement>(null);
+  // دالة إنشاء PDF باستخدام pdfmake
+  const generatePDF = async (invoice: Invoice) => {
+    setPdfGenerating(true);
+    setPdfError(null);
 
-  const handleDownloadPDF = async () => {
-    const displayInvoice = invoiceDetails ?? selectedInvoice;
-    if (!displayInvoice) return;
-    const el = invoiceDetailRef.current;
-    if (!el) return;
     try {
-      const canvas = await html2canvas(el, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff"
-      });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const imgRatio = canvas.width / canvas.height;
-      const h = Math.min(pageW / imgRatio, pageH);
-      const w = h * imgRatio;
-      pdf.addImage(imgData, "PNG", (pageW - w) / 2, 0, w, h);
-      pdf.save(`invoice-${displayInvoice.invoiceNumber.replace(/#/g, "")}.pdf`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "فشل إنشاء PDF");
+      await ensurePdfFontsLoaded();
+      const logoDataUrl = invoice.logoUrl ? await fetchImageAsDataUrl(invoice.logoUrl) : null;
+      // تحضير بيانات الجدول
+      const tableBody = [
+        [
+          { text: 'الوصف', style: 'tableHeader' },
+          { text: 'الكمية', style: 'tableHeader' },
+          { text: 'السعر', style: 'tableHeader' }
+        ],
+        ...invoice.items.map(item => [
+          { text: item.name, style: 'tableCell' },
+          { text: item.quantity, style: 'tableCell' },
+          { text: item.price, style: 'tableCell' }
+        ])
+      ];
+
+      // تحضير سجل المدفوعات
+      const paymentsContent = invoice.payments.length > 0 
+        ? invoice.payments.map(payment => [
+            {
+              stack: [
+                { text: payment.date, style: 'paymentDate' },
+                { text: payment.method, style: 'paymentMethod' }
+              ],
+              alignment: 'right'
+            },
+            { text: payment.amount, style: 'paymentAmount', alignment: 'left' }
+          ])
+        : [];
+
+      // تعريف محتوى PDF
+      const docDefinition = {
+        pageSize: 'A4',
+        pageMargins: [40, 40, 40, 40],
+        defaultStyle: {
+          font: pdfDefaultFont,
+          direction: 'rtl',
+          alignment: 'right'
+        },
+        header: logoDataUrl ? {
+          columns: [
+            { image: logoDataUrl, width: 100, alignment: 'left' },
+            { text: '', width: '*' }
+          ],
+          margin: [40, 20, 40, 10]
+        } : undefined,
+        content: [
+          // عنوان الفاتورة
+          {
+            text: 'فاتورة',
+            style: 'mainTitle',
+            alignment: 'center',
+            margin: [0, 0, 0, 20]
+          },
+          
+          // رقم الفاتورة
+          {
+            text: invoice.invoiceNumber,
+            style: 'invoiceNumber',
+            alignment: 'center',
+            margin: [0, 0, 0, 15]
+          },
+
+          // حالة الفاتورة
+          {
+            text: invoice.status,
+            style: `status${invoice.status}`,
+            alignment: 'center',
+            margin: [0, 0, 0, 20]
+          },
+
+          // معلومات العميل
+          {
+            stack: [
+              { text: 'معلومات العميل', style: 'sectionTitle' },
+              { text: `الاسم: ${invoice.clientName}`, style: 'infoText' },
+              ...(invoice.clientEmail ? [{ text: `البريد الإلكتروني: ${invoice.clientEmail}`, style: 'infoText' }] : []),
+              { text: `تاريخ الإصدار: ${invoice.issueDate}`, style: 'infoText' },
+              { text: `تاريخ الاستحقاق: ${invoice.dueDate}`, style: 'infoText' },
+              ...(invoice.checkoutUrl ? [{ text: `رابط الدفع: ${invoice.checkoutUrl}`, style: 'link' }] : [])
+            ],
+            margin: [0, 0, 0, 20]
+          },
+
+          // بنود الفاتورة
+          {
+            text: 'بنود الفاتورة',
+            style: 'sectionTitle',
+            margin: [0, 0, 0, 10]
+          },
+          {
+            table: {
+              headerRows: 1,
+              widths: ['*', 'auto', 'auto'],
+              body: tableBody,
+              layout: {
+                fillColor: (rowIndex: number) => rowIndex === 0 ? '#F3F4F6' : null,
+                hLineWidth: () => 0.5,
+                vLineWidth: () => 0.5,
+                hLineColor: () => '#E5E7EB',
+                vLineColor: () => '#E5E7EB',
+                paddingLeft: () => 8,
+                paddingRight: () => 8,
+                paddingTop: () => 8,
+                paddingBottom: () => 8,
+              }
+            },
+            margin: [0, 0, 0, 20]
+          },
+
+          // الملخص المالي
+          {
+            stack: [
+              {
+                columns: [
+                  { text: 'المجموع الفرعي:', alignment: 'right', width: '70%' },
+                  { text: invoice.subtotal, alignment: 'left', width: '30%' }
+                ],
+                margin: [0, 0, 0, 5]
+              },
+              {
+                columns: [
+                  { text: 'الضريبة:', alignment: 'right', width: '70%' },
+                  { text: invoice.tax, alignment: 'left', width: '30%' }
+                ],
+                margin: [0, 0, 0, 5]
+              },
+              {
+                columns: [
+                  { text: 'الإجمالي:', alignment: 'right', width: '70%', bold: true, fontSize: 14 },
+                  { text: invoice.total, alignment: 'left', width: '30%', bold: true, fontSize: 16 }
+                ],
+                margin: [0, 10, 0, 0]
+              }
+            ],
+            margin: [0, 0, 0, 20]
+          },
+
+          // سجل المدفوعات
+          ...(paymentsContent.length > 0 ? [
+            { text: 'سجل المدفوعات', style: 'sectionTitle', margin: [0, 0, 0, 10] },
+            ...paymentsContent.map(payment => ({
+              columns: payment,
+              margin: [0, 0, 0, 10]
+            }))
+          ] : [])
+        ],
+        styles: {
+          mainTitle: {
+            fontSize: 24,
+            bold: true,
+            color: '#1F2937'
+          },
+          invoiceNumber: {
+            fontSize: 12,
+            color: '#6B7280'
+          },
+          sectionTitle: {
+            fontSize: 16,
+            bold: true,
+            color: '#1F2937',
+            margin: [0, 0, 0, 10]
+          },
+          infoText: {
+            fontSize: 11,
+            color: '#374151',
+            margin: [0, 2, 0, 2]
+          },
+          link: {
+            fontSize: 11,
+            color: '#7C3AED',
+            decoration: 'underline'
+          },
+          tableHeader: {
+            fontSize: 12,
+            bold: true,
+            color: '#4B5563',
+            alignment: 'center'
+          },
+          tableCell: {
+            fontSize: 11,
+            color: '#374151',
+            alignment: 'center'
+          },
+          statusمدفوعة: {
+            fontSize: 12,
+            bold: true,
+            color: '#065F46',
+            background: '#D1FAE5',
+            alignment: 'center',
+            margin: [0, 0, 0, 0]
+          },
+          statusقيد_الانتظار: {
+            fontSize: 12,
+            bold: true,
+            color: '#92400E',
+            background: '#FEF3C7',
+            alignment: 'center'
+          },
+          statusمتأخرة: {
+            fontSize: 12,
+            bold: true,
+            color: '#991B1B',
+            background: '#FEE2E2',
+            alignment: 'center'
+          },
+          paymentDate: {
+            fontSize: 10,
+            color: '#6B7280'
+          },
+          paymentAmount: {
+            fontSize: 11,
+            color: '#1F2937',
+            bold: true
+          },
+          paymentMethod: {
+            fontSize: 9,
+            color: '#9CA3AF'
+          }
+        }
+      };
+
+      // إنشاء وتحميل PDF (الخطوط مسجّلة مسبقاً عبر addVirtualFileSystem/addFonts)
+      pdfMake.createPdf(docDefinition as unknown as Parameters<typeof pdfMake.createPdf>[0]).download(`invoice-${invoice.invoiceNumber}.pdf`);
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      setPdfError(error instanceof Error ? error.message : 'فشل إنشاء PDF');
+    } finally {
+      setPdfGenerating(false);
+    }
+  };
+
+  // دالة معاينة PDF
+  const previewPDF = async (invoice: Invoice) => {
+    setPdfGenerating(true);
+    setPdfError(null);
+
+    try {
+      await ensurePdfFontsLoaded();
+      // نفس تعريف docDefinition السابق
+      const docDefinition = {
+        // ... نفس المحتوى السابق
+        pageSize: 'A4',
+        pageMargins: [40, 40, 40, 40],
+        defaultStyle: {
+          font: pdfDefaultFont,
+          direction: 'rtl',
+          alignment: 'right'
+        },
+        content: [
+          {
+            text: 'فاتورة',
+            style: 'mainTitle',
+            alignment: 'center',
+            margin: [0, 0, 0, 20]
+          },
+          {
+            text: invoice.invoiceNumber,
+            style: 'invoiceNumber',
+            alignment: 'center',
+            margin: [0, 0, 0, 15]
+          },
+          {
+            text: invoice.status,
+            style: `status${invoice.status}`,
+            alignment: 'center',
+            margin: [0, 0, 0, 20]
+          },
+          {
+            stack: [
+              { text: 'معلومات العميل', style: 'sectionTitle' },
+              { text: `الاسم: ${invoice.clientName}`, style: 'infoText' },
+              ...(invoice.clientEmail ? [{ text: `البريد الإلكتروني: ${invoice.clientEmail}`, style: 'infoText' }] : []),
+              { text: `تاريخ الإصدار: ${invoice.issueDate}`, style: 'infoText' },
+              { text: `تاريخ الاستحقاق: ${invoice.dueDate}`, style: 'infoText' },
+              ...(invoice.checkoutUrl ? [{ text: `رابط الدفع: ${invoice.checkoutUrl}`, style: 'link' }] : [])
+            ],
+            margin: [0, 0, 0, 20]
+          },
+          {
+            text: 'بنود الفاتورة',
+            style: 'sectionTitle',
+            margin: [0, 0, 0, 10]
+          },
+          {
+            table: {
+              headerRows: 1,
+              widths: ['*', 'auto', 'auto'],
+              body: [
+                [
+                  { text: 'الوصف', style: 'tableHeader' },
+                  { text: 'الكمية', style: 'tableHeader' },
+                  { text: 'السعر', style: 'tableHeader' }
+                ],
+                ...invoice.items.map(item => [
+                  { text: item.name, style: 'tableCell' },
+                  { text: item.quantity, style: 'tableCell' },
+                  { text: item.price, style: 'tableCell' }
+                ])
+              ],
+              layout: {
+                fillColor: (rowIndex: number) => rowIndex === 0 ? '#F3F4F6' : null,
+                hLineWidth: () => 0.5,
+                vLineWidth: () => 0.5,
+                hLineColor: () => '#E5E7EB',
+                vLineColor: () => '#E5E7EB',
+              }
+            },
+            margin: [0, 0, 0, 20]
+          },
+          {
+            stack: [
+              {
+                columns: [
+                  { text: 'المجموع الفرعي:', alignment: 'right', width: '70%' },
+                  { text: invoice.subtotal, alignment: 'left', width: '30%' }
+                ],
+                margin: [0, 0, 0, 5]
+              },
+              {
+                columns: [
+                  { text: 'الضريبة:', alignment: 'right', width: '70%' },
+                  { text: invoice.tax, alignment: 'left', width: '30%' }
+                ],
+                margin: [0, 0, 0, 5]
+              },
+              {
+                columns: [
+                  { text: 'الإجمالي:', alignment: 'right', width: '70%', bold: true, fontSize: 14 },
+                  { text: invoice.total, alignment: 'left', width: '30%', bold: true, fontSize: 16 }
+                ],
+                margin: [0, 10, 0, 0]
+              }
+            ],
+            margin: [0, 0, 0, 20]
+          }
+        ],
+        styles: {
+          mainTitle: {
+            fontSize: 24,
+            bold: true,
+            color: '#1F2937'
+          },
+          invoiceNumber: {
+            fontSize: 12,
+            color: '#6B7280'
+          },
+          sectionTitle: {
+            fontSize: 16,
+            bold: true,
+            color: '#1F2937',
+            margin: [0, 0, 0, 10]
+          },
+          infoText: {
+            fontSize: 11,
+            color: '#374151',
+            margin: [0, 2, 0, 2]
+          },
+          link: {
+            fontSize: 11,
+            color: '#7C3AED',
+            decoration: 'underline'
+          },
+          tableHeader: {
+            fontSize: 12,
+            bold: true,
+            color: '#4B5563',
+            alignment: 'center'
+          },
+          tableCell: {
+            fontSize: 11,
+            color: '#374151',
+            alignment: 'center'
+          },
+          statusمدفوعة: {
+            fontSize: 12,
+            bold: true,
+            color: '#065F46',
+            background: '#D1FAE5',
+            alignment: 'center'
+          },
+          statusقيد_الانتظار: {
+            fontSize: 12,
+            bold: true,
+            color: '#92400E',
+            background: '#FEF3C7',
+            alignment: 'center'
+          },
+          statusمتأخرة: {
+            fontSize: 12,
+            bold: true,
+            color: '#991B1B',
+            background: '#FEE2E2',
+            alignment: 'center'
+          }
+        }
+      };
+
+      // فتح PDF في نافذة جديدة للمعاينة (الخطوط مسجّلة مسبقاً)
+      pdfMake.createPdf(docDefinition as unknown as Parameters<typeof pdfMake.createPdf>[0]).open();
+      
+    } catch (error) {
+      console.error('Error previewing PDF:', error);
+      setPdfError(error instanceof Error ? error.message : 'فشل معاينة PDF');
+    } finally {
+      setPdfGenerating(false);
     }
   };
 
@@ -344,16 +826,29 @@ export default function BaseUserInvoicesPage() {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="lg:col-span-2 order-1 lg:order-1">
-
-        <button onClick={handleExportReport} className="mb-4 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors
-        hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"> تصدير التقرير </button>
+        <button 
+          onClick={handleExportReport} 
+          className="mb-4 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+        >
+          تصدير التقرير
+        </button>
+        
         <div className="mb-4 flex flex-wrap gap-2">
           {["الكل", "مدفوعة", "قيد الانتظار", "متأخرة"].map((status) => (
-            <button key={status} onClick={() => {
-              setSelectedStatus(status);
-              setCurrentPage(1);
-            }} className={`rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${selectedStatus === status ? "bg-purple-500 text-white"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"}`}>{status}</button>
+            <button 
+              key={status} 
+              onClick={() => {
+                setSelectedStatus(status);
+                setCurrentPage(1);
+              }} 
+              className={`rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
+                selectedStatus === status 
+                  ? "bg-purple-500 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+              }`}
+            >
+              {status}
+            </button>
           ))}
         </div>
 
@@ -364,10 +859,17 @@ export default function BaseUserInvoicesPage() {
                 <TableRow>
                   <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
                     <div className="flex items-center gap-3">
-                      <input type="checkbox" checked={
+                      <input 
+                        id="invoices-select-all" 
+                        name="invoices-select-all" 
+                        type="checkbox" 
+                        checked={
                           paginatedInvoices.length > 0 &&
                           selectedInvoices.length === paginatedInvoices.length
-                        } onChange={toggleSelectAll} className="w-4 h-4 text-brand-500 border-gray-300 rounded focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800" />
+                        } 
+                        onChange={toggleSelectAll} 
+                        className="w-4 h-4 text-brand-500 border-gray-300 rounded focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800" 
+                      />
                       رقم الفاتورة
                     </div>
                   </TableCell>
@@ -379,31 +881,55 @@ export default function BaseUserInvoicesPage() {
               </TableHeader>
               <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {paginatedInvoices.map((invoice) => (
-                  <TableRow key={invoice.id} className={`cursor-pointer transition-colors ${selectedInvoice?.id === invoice.id ? "bg-purple-50 dark:bg-purple-900/10"
-                    : "hover:bg-gray-50 dark:hover:bg-gray-800/50"}`} onClick={() => setSelectedInvoice(invoice)}>
+                  <TableRow 
+                    key={invoice.id} 
+                    className={`cursor-pointer transition-colors ${
+                      selectedInvoice?.id === invoice.id 
+                        ? "bg-purple-50 dark:bg-purple-900/10"
+                        : "hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                    }`} 
+                    onClick={() => setSelectedInvoice(invoice)}
+                  >
                     <TableCell className="py-3">
                       <div className="flex items-center gap-3">
-                        <input type="checkbox" checked={selectedInvoices.includes(invoice.id)} onChange={(e) => {
+                        <input 
+                          id={`invoice-select-${invoice.id}`} 
+                          name={`invoice-select-${invoice.id}`} 
+                          type="checkbox" 
+                          checked={selectedInvoices.includes(invoice.id)} 
+                          onChange={(e) => {
                             e.stopPropagation();
                             toggleInvoiceSelection(invoice.id);
-                          }} className="w-4 h-4 text-brand-500 border-gray-300 rounded focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800" />
-                        <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90"> {invoice.invoiceNumber} </span>
+                          }} 
+                          className="w-4 h-4 text-brand-500 border-gray-300 rounded focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800" 
+                        />
+                        <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90"> 
+                          {invoice.invoiceNumber} 
+                        </span>
                       </div>
                     </TableCell>
-                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90"> {invoice.clientName} </TableCell>
-                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90"> {invoice.amount} </TableCell>
+                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90"> 
+                      {invoice.clientName} 
+                    </TableCell>
+                    <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90"> 
+                      {invoice.amount} 
+                    </TableCell>
                     <TableCell className="py-3">
-                      <Badge size="sm" color={getStatusBadgeColor(invoice.status)}> {invoice.status} </Badge>
+                      <Badge size="sm" color={getStatusBadgeColor(invoice.status)}> 
+                        {invoice.status} 
+                      </Badge>
                     </TableCell>
                     <TableCell className="py-3">
                       <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                         <div className="relative">
-                          <Button onClick={() => {
-                                setSelectedInvoice(invoice);
-                              }} className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5
-                              dark:hover:text-gray-300">
-                              عرض التفاصيل
-                            </Button>
+                          <Button 
+                            onClick={() => {
+                              setSelectedInvoice(invoice);
+                            }} 
+                            className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                          >
+                            عرض التفاصيل
+                          </Button>
                         </div>
                       </div>
                     </TableCell>
@@ -420,25 +946,35 @@ export default function BaseUserInvoicesPage() {
                 {Math.min(currentPage * itemsPerPage, totalItems)} من {totalItems}
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1 || isLoading} className="rounded-lg border border-gray-200 bg-white px-4 py-2
-                text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300
-                dark:hover:bg-gray-700">
+                <button 
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))} 
+                  disabled={currentPage === 1 || isLoading} 
+                  className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
                   السابق
                 </button>
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   const page = i + 1;
                   return (
-                    <button key={page} onClick={() => setCurrentPage(page)} disabled={isLoading} className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                        currentPage === page ? "bg-purple-500 text-white"
-                        : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                      }`}>
+                    <button 
+                      key={page} 
+                      onClick={() => setCurrentPage(page)} 
+                      disabled={isLoading} 
+                      className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                        currentPage === page 
+                          ? "bg-purple-500 text-white"
+                          : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                      }`}
+                    >
                       {page}
                     </button>
                   );
                 })}
-                <button onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))} disabled={currentPage >= totalPages || isLoading} className="rounded-lg border border-gray-200
-                bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800
-                dark:text-gray-300 dark:hover:bg-gray-700">
+                <button 
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))} 
+                  disabled={currentPage >= totalPages || isLoading} 
+                  className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
                   التالي
                 </button>
               </div>
@@ -452,7 +988,9 @@ export default function BaseUserInvoicesPage() {
           <div className="space-y-6">
             <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 sm:p-6">
               {invoiceDetailsLoading && !invoiceDetails ? (
-                <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">جاري تحميل التفاصيل...</div>
+                <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                  جاري تحميل التفاصيل...
+                </div>
               ) : invoiceDetailsError && !invoiceDetails ? (
                 <div className="py-4 rounded-lg bg-red-50 dark:bg-red-950/30 text-sm text-red-600 dark:text-red-400">
                   {invoiceDetailsError}
@@ -460,95 +998,125 @@ export default function BaseUserInvoicesPage() {
               ) : (() => {
                 const displayInvoice = invoiceDetails ?? selectedInvoice;
                 if (!displayInvoice) return null;
+                
                 return (
                   <>
-              <div ref={invoiceDetailRef} className="bg-white dark:bg-white/3">
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">تفاصيل الفاتورة</h2>
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{displayInvoice.invoiceNumber}</p>
-              </div>
-
-              <div className="mb-6">
-                <Badge size="sm" color={getStatusBadgeColor(displayInvoice.status)}>{displayInvoice.status}</Badge>
-              </div>
-
-              <div className="mb-6 space-y-4">
-                <div>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">العميل</span>
-                  <p className="mt-1 font-medium text-gray-800 dark:text-white/90">{displayInvoice.clientName}</p>
-                  {displayInvoice.clientEmail && (
-                    <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">{displayInvoice.clientEmail}</p>
-                  )}
-                </div>
-                <div>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">تاريخ الاصدار</span>
-                  <p className="mt-1 font-medium text-gray-800 dark:text-white/90">{displayInvoice.issueDate}</p>
-                </div>
-                <div>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">تاريخ الاستحقاق</span>
-                  <p className="mt-1 font-medium text-gray-800 dark:text-white/90">{displayInvoice.dueDate}</p>
-                </div>
-                {displayInvoice.checkoutUrl && (
-                  <div>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">رابط الدفع</span>
-                    <a href={displayInvoice.checkoutUrl} target="_blank" rel="noopener noreferrer" className="mt-1 block truncate text-sm font-medium text-purple-600 hover:underline
-                    dark:text-purple-400">
-                      {displayInvoice.checkoutUrl}
-                    </a>
-                  </div>
-                )}
-              </div>
-
-              <div className="mb-6">
-                <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">البنود</h3>
-                <div className="space-y-2">
-                  {displayInvoice.items.map((item, index) => (
-                    <div key={index} className="flex justify-between border-b border-gray-100 py-2 text-sm dark:border-gray-800">
-                      <span className="text-gray-700 dark:text-gray-300"> {item.name} </span>
-                      <span className="font-medium text-gray-800 dark:text-white/90"> {item.price} </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mb-6 space-y-2 rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400"> المجموع الفرعي: </span>
-                  <span className="font-medium text-gray-800 dark:text-white/90"> {displayInvoice.subtotal} </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400"> ضريبة (%8): </span>
-                  <span className="font-medium text-gray-800 dark:text-white/90"> {displayInvoice.tax} </span>
-                </div>
-                <div className="flex justify-between border-t border-gray-200 pt-3 dark:border-gray-700">
-                  <span className="text-lg font-semibold text-gray-800 dark:text-white/90"> المبلغ الاجمالي: </span>
-                  <span className="text-2xl font-bold text-gray-800 dark:text-white/90"> {displayInvoice.total} </span>
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90"> سجل الدفع </h3>
-                {displayInvoice.payments.length > 0 ? (
-                  <div className="space-y-2">
-                    {displayInvoice.payments.map((payment, index) => (
-                      <div key={index} className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
-                        <div className="mb-1 flex justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400"> {payment.date} </span>
-                          <span className="font-medium text-gray-800 dark:text-white/90"> {payment.amount} </span>
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400"> {payment.method} </div>
+                    <div className="bg-white dark:bg-white/3">
+                      <div className="mb-4">
+                        <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">تفاصيل الفاتورة</h2>
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{displayInvoice.invoiceNumber}</p>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500 dark:text-gray-400"> لم يتم تسجيل اي مدفوعات حتى الان </p>
-                )}
-              </div>
-              </div>
 
-              <div className="space-y-3 border-t border-gray-200 pt-4 dark:border-gray-800">
-                <Button size="sm" variant="outline" className="w-full" onClick={handleDownloadPDF}>تنزيل PDF</Button>
-              </div>
+                      <div className="mb-6">
+                        <Badge size="sm" color={getStatusBadgeColor(displayInvoice.status)}>
+                          {displayInvoice.status}
+                        </Badge>
+                      </div>
+
+                      <div className="mb-6 space-y-4">
+                        <div>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">العميل</span>
+                          <p className="mt-1 font-medium text-gray-800 dark:text-white/90">{displayInvoice.clientName}</p>
+                          {displayInvoice.clientEmail && (
+                            <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">{displayInvoice.clientEmail}</p>
+                          )}
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">تاريخ الاصدار</span>
+                          <p className="mt-1 font-medium text-gray-800 dark:text-white/90">{displayInvoice.issueDate}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">تاريخ الاستحقاق</span>
+                          <p className="mt-1 font-medium text-gray-800 dark:text-white/90">{displayInvoice.dueDate}</p>
+                        </div>
+                        {displayInvoice.checkoutUrl && (
+                          <div>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">رابط الدفع</span>
+                            <a 
+                              href={displayInvoice.checkoutUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="mt-1 block truncate text-sm font-medium text-purple-600 hover:underline dark:text-purple-400"
+                            >
+                              {displayInvoice.checkoutUrl}
+                            </a>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mb-6">
+                        <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">البنود</h3>
+                        <div className="space-y-2">
+                          {displayInvoice.items.map((item, index) => (
+                            <div key={index} className="flex justify-between border-b border-gray-100 py-2 text-sm dark:border-gray-800">
+                              <span className="text-gray-700 dark:text-gray-300"> {item.name} </span>
+                              <span className="font-medium text-gray-800 dark:text-white/90"> {item.price} </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="mb-6 space-y-2 rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600 dark:text-gray-400"> المجموع الفرعي: </span>
+                          <span className="font-medium text-gray-800 dark:text-white/90"> {displayInvoice.subtotal} </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600 dark:text-gray-400"> ضريبة: </span>
+                          <span className="font-medium text-gray-800 dark:text-white/90"> {displayInvoice.tax} </span>
+                        </div>
+                        <div className="flex justify-between border-t border-gray-200 pt-3 dark:border-gray-700">
+                          <span className="text-lg font-semibold text-gray-800 dark:text-white/90"> المبلغ الاجمالي: </span>
+                          <span className="text-2xl font-bold text-gray-800 dark:text-white/90"> {displayInvoice.total} </span>
+                        </div>
+                      </div>
+
+                      <div className="mb-6">
+                        <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90"> سجل الدفع </h3>
+                        {displayInvoice.payments.length > 0 ? (
+                          <div className="space-y-2">
+                            {displayInvoice.payments.map((payment, index) => (
+                              <div key={index} className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+                                <div className="mb-1 flex justify-between text-sm">
+                                  <span className="text-gray-600 dark:text-gray-400"> {payment.date} </span>
+                                  <span className="font-medium text-gray-800 dark:text-white/90"> {payment.amount} </span>
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400"> {payment.method} </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-500 dark:text-gray-400"> لم يتم تسجيل اي مدفوعات حتى الان </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* أزرار PDF */}
+                    <div className="space-y-3 border-t border-gray-200 pt-4 dark:border-gray-800">
+                      {pdfError && (
+                        <p className="text-sm text-red-600 dark:text-red-400">{pdfError}</p>
+                      )}
+                      
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => previewPDF(displayInvoice)}
+                        disabled={pdfGenerating}
+                      >
+                        {pdfGenerating ? 'جاري التحميل...' : 'معاينة PDF'}
+                      </Button>
+                      
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => generatePDF(displayInvoice)}
+                        disabled={pdfGenerating}
+                      >
+                        {pdfGenerating ? 'جاري التحميل...' : 'تحميل PDF'}
+                      </Button>
+                    </div>
                   </>
                 );
               })()}

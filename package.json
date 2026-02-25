@@ -20,6 +20,7 @@
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/postcss": "^4.1.17",
     "@types/js-cookie": "^3.0.6",
+    "@types/pdfmake": "^0.3.1",
     "apexcharts": "^4.7.0",
     "autoprefixer": "^10.4.22",
     "axios": "^1.13.4",
@@ -28,13 +29,14 @@
     "js-cookie": "^3.0.5",
     "jspdf": "^4.2.0",
     "next": "^16.1.0",
+    "pdfmake": "^0.3.5",
     "react": "^19.2.0",
     "react-apexcharts": "^1.8.0",
     "react-dnd": "^16.0.1",
     "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^19.2.0",
     "react-dropzone": "^14.3.8",
-    "swiper": "^11.2.10",
+    "swiper": "^12.1.2",
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
