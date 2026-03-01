@@ -119,7 +119,11 @@ export default function EditAuctionForm() {
       router.push(basePath ? `${basePath}` : `/wholesaler/auctions/${auctionId}`);
     } catch (error) {
       const axiosError = error as AxiosError;
-      setError(axiosError.message as string);
+      const detail =
+        (axiosError?.response?.data as { detail?: string })?.detail ??
+        axiosError.message ??
+        "حدث خطأ أثناء تحديث المزاد";
+      setError(detail);
     } finally {
       setIsSubmitting(false);
     }

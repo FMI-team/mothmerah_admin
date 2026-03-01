@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   async headers() {
@@ -8,7 +9,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Cache-Control",
-            value: "public, max-age=31536000, immutable", // سنة واحدة
+            value: "public, max-age=31536000, immutable"
           },
         ],
       },
@@ -33,7 +34,17 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  webpack(config) {
+  webpack(config, { dir }) {
+    const projectDir = dir ?? __dirname;
+    config.resolve = config.resolve ?? {};
+    config.resolve.modules = [
+      path.join(projectDir, "node_modules"),
+      "node_modules",
+    ];
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      tailwindcss: path.join(projectDir, "node_modules", "tailwindcss"),
+    };
     config.module.rules.push({
       test: /\.svg$/,
       use: ["@svgr/webpack"],
