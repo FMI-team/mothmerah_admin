@@ -70,10 +70,12 @@ export default function UserInfoCard({ userDetails, onEditSave }: UserInfoCardPr
           <div>
             <div className="flex items-center justify-between gap-3 lg:mb-6 mb-4">
               <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90">المعلومات الشخصية</h4>
-              <Button size="sm" variant="outline" className="flex items-center gap-2 text-xs lg:text-sm py-1.5! lg:py-2!" onClick={() => setIsEditOpen(true)}>
-                <PencilIcon className="w-4 h-4" />
-                <span>{"تعديل"}</span>
-              </Button>
+              {onEditSave && (
+                <Button size="sm" variant="outline" className="flex items-center gap-2 text-xs lg:text-sm py-1.5! lg:py-2!" onClick={() => setIsEditOpen(true)}>
+                  <PencilIcon className="w-4 h-4" />
+                  <span>{"تعديل"}</span>
+                </Button>
+              )}
             </div>
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-7 2xl:gap-x-32">

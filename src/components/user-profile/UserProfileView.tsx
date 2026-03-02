@@ -111,15 +111,16 @@ export default function UserProfileView() {
         const data: UserDetails = response.data;
         setUserDetails(data);
       } catch (err) {
-        const axiosErr = err as AxiosError<{ message?: string }>;
-        setError(axiosErr.response?.data?.message ?? (err instanceof Error ? err.message : "حدث خطأ في جلب بيانات المستخدم"));
+        const axiosErr = err as AxiosError<{ detail?: unknown }>;
+        const detail = axiosErr.response?.data?.detail;
+        setError(typeof detail === "string" ? detail : (axiosErr.message ?? "حدث خطأ في جلب بيانات المستخدم"));
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchUserDetails();
-  }, []);
+  }, [viewedUserId]);
 
   const handleSaveInfo = async (updated: Partial<UserDetails>) => {
     try {
@@ -174,7 +175,7 @@ export default function UserProfileView() {
   return (
     <div className="space-y-6">
       <UserMetaCard userDetails={userDetails} />
-      <UserInfoCard userDetails={userDetails} onEditSave={handleSaveInfo} />
+      <UserInfoCard userDetails={userDetails} onEditSave={viewedUserId ? undefined : handleSaveInfo} />
       <UserAddressCard userDetails={userDetails} />
     </div>
   );

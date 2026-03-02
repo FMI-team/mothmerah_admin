@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table"
 import { Modal } from "../ui/modal";
 import Label from "../form/Label";
 import Button from "../ui/button/Button";
-import { assignPermissionToRole, createNewRole, readAllPermissions, readPermissionOfRole, readRoles, removeRole } from "../../../services/roles";
+import { assignPermissionToRole, createNewRole, readAllPermissions, readPermissionOfRole, readRoles, removeRole, removePermissionFromRole } from "../../../services/roles";
 
 interface RoleTranslation {
   language_code: string;
@@ -83,7 +83,6 @@ const RolesComponent = () => {
   const [assignPermissionsLoading, setAssignPermissionsLoading] = useState(false);
   const [assignPermissionsError, setAssignPermissionsError] = useState<string | null>(null);
   const [assignSelectedIds, setAssignSelectedIds] = useState<Array<number>>([]);
-  const [assignSubmitting, setAssignSubmitting] = useState(false);
   const [assignSuccess, setAssignSuccess] = useState<string | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
 
@@ -197,19 +196,28 @@ const RolesComponent = () => {
 
   const openAssignModal = async (role: ApiRole) => {
     setAssignModalRole(role);
-    setAssignSelectedIds([]);
-    setAssignSuccess(null);
     setAssignError(null);
     setAllPermissionsByModule([]);
     setAssignPermissionsError(null);
     setAssignPermissionsLoading(true);
     try {
-      const response = await readAllPermissions();
-      if (response.status === 200 && Array.isArray(response.data)) {
-        setAllPermissionsByModule(response.data as PermissionsByModule[]);
+      const [allRes, roleRes] = await Promise.all([
+        readAllPermissions(),
+        readPermissionOfRole(role.role_id),
+      ]);
+      if (allRes.status === 200 && Array.isArray(allRes.data)) {
+        setAllPermissionsByModule(allRes.data as PermissionsByModule[]);
       } else {
         setAssignPermissionsError("فشل تحميل قائمة الصلاحيات");
       }
+      const roleData = roleRes.data as RoleWithPermissions | undefined;
+      const assignedIds =
+        roleRes.status === 200 &&
+        roleData &&
+        Array.isArray(roleData.permissions)
+          ? roleData.permissions.map((p) => p.permission_id)
+          : [];
+      setAssignSelectedIds(assignedIds);
     } catch (err: unknown) {
       const msg = err && typeof err === "object" && "response" in err
         ? (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
@@ -221,45 +229,44 @@ const RolesComponent = () => {
   };
 
   const closeAssignModal = () => {
-    if (!assignSubmitting) {
-      setAssignModalRole(null);
-      setAllPermissionsByModule([]);
-      setAssignPermissionsError(null);
-      setAssignSelectedIds([]);
-      setAssignSuccess(null);
-      setAssignError(null);
-    }
-  };
-
-  const toggleAssignPermission = (permissionId: number) => {
-    setAssignSelectedIds((prev) => {
-      if (prev.includes(permissionId)) {
-        return prev.filter((id) => id !== permissionId);
-      }
-      return [...prev, permissionId];
-    });
-  };
-
-  const handleAssignPermissions = async () => {
-    if (!assignModalRole || assignSelectedIds.length === 0) return;
-    setAssignError(null);
+    setAssignModalRole(null);
+    setAllPermissionsByModule([]);
+    setAssignPermissionsError(null);
+    setAssignSelectedIds([]);
     setAssignSuccess(null);
-    setAssignSubmitting(true);
-    try {
-      const response = await assignPermissionToRole(assignModalRole.role_id, assignSelectedIds);
-      if (response.status === 200) {
-        setAssignSuccess(`تم إسناد ${assignSelectedIds.length} صلاحية بنجاح`);
-        setAssignSelectedIds([]);
-      } else {
-        setAssignError(apiDetailToString((response as { data?: { detail?: unknown } })?.data?.detail) || "فشل إسناد الصلاحيات");
+    setAssignError(null);
+  };
+
+  const toggleAssignPermission = async (permissionId: number) => {
+    if (!assignModalRole) return;
+    const currentlyAssigned = assignSelectedIds.includes(permissionId);
+    setAssignError(null);
+
+    if (currentlyAssigned) {
+      setAssignSelectedIds((prev) => prev.filter((id) => id !== permissionId));
+      try {
+        await removePermissionFromRole(assignModalRole.role_id, [permissionId]);
+      } catch (err: unknown) {
+        const msg = err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
+          : null;
+        setAssignError(apiDetailToString(msg) || "فشل إزالة الصلاحية");
+        setAssignSelectedIds((prev) => [...prev, permissionId]);
       }
-    } catch (err: unknown) {
-      const msg = err && typeof err === "object" && "response" in err
-        ? (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
-        : null;
-      setAssignError(apiDetailToString(msg) || "فشل إسناد الصلاحيات");
-    } finally {
-      setAssignSubmitting(false);
+    } else {
+      setAssignSelectedIds((prev) => [...prev, permissionId]);
+      try {
+        const response = await assignPermissionToRole(assignModalRole.role_id, [permissionId]);
+        if (response.status !== 200) {
+          throw new Error(apiDetailToString((response as { data?: { detail?: unknown } })?.data?.detail) || "فشل إسناد الصلاحية");
+        }
+      } catch (err: unknown) {
+        const msg = err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
+          : null;
+        setAssignError(apiDetailToString(msg) || "فشل إسناد الصلاحية");
+        setAssignSelectedIds((prev) => prev.filter((id) => id !== permissionId));
+      }
     }
   };
 
@@ -514,10 +521,7 @@ const RolesComponent = () => {
               <p className="mt-3 text-sm text-red-600 dark:text-red-400">{assignError}</p>
             )}
             <div className="mt-6 flex shrink-0 justify-end gap-3">
-              <Button size="sm" variant="outline" onClick={closeAssignModal} disabled={assignSubmitting}>إلغاء</Button>
-              <Button size="sm" className="bg-purple-500 hover:bg-purple-600" onClick={handleAssignPermissions} disabled={assignSubmitting || assignSelectedIds.length === 0}>
-                {assignSubmitting ? "جاري الإسناد..." : "إسناد"}
-              </Button>
+              <Button size="sm" variant="outline" onClick={closeAssignModal}>إلغاء</Button>
             </div>
           </>
         )}

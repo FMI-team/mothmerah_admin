@@ -103,14 +103,12 @@ interface AccountStatusOption {
 const ACCOUNT_STATUSES: AccountStatusOption[] = [
   { account_status_id: 1, status_name_key: "PENDING_ACTIVATION", is_terminal: false },
   { account_status_id: 2, status_name_key: "ACTIVE", is_terminal: false },
-  { account_status_id: 3, status_name_key: "SUSPENDED", is_terminal: false },
   { account_status_id: 4, status_name_key: "DELETED", is_terminal: true }
 ];
 
 const ACCOUNT_STATUS_LABELS: Record<string, string> = {
   PENDING_ACTIVATION: "قيد التفعيل",
   ACTIVE: "نشط",
-  SUSPENDED: "معلق",
   DELETED: "محذوف"
 };
 
@@ -214,8 +212,9 @@ export default function UserManagement() {
       const data = response.data;
       setUsers(data || []);
     } catch (err) {
-      const axiosError = err as AxiosError;
-      setError(axiosError.message as string);
+      const axiosError = err as AxiosError<{ detail?: unknown }>;
+      const detail = axiosError.response?.data?.detail;
+      setError(typeof detail === "string" ? detail : (axiosError.message ?? "فشل في جلب المستخدمين"));
     } finally {
       setIsLoading(false);
     }
@@ -273,8 +272,9 @@ export default function UserManagement() {
 
       setError(null);
     } catch (err) {
-      const axiosError = err as AxiosError;
-      setError(axiosError.message as string);
+      const axiosError = err as AxiosError<{ detail?: unknown }>;
+      const detail = axiosError.response?.data?.detail;
+      setError(typeof detail === "string" ? detail : (axiosError.message ?? "فشل في حذف المستخدم"));
     }
   };
 
@@ -333,8 +333,9 @@ export default function UserManagement() {
       handleCloseCreateUserModal();
       await fetchUsers();
     } catch (err) {
-      const axiosError = err as AxiosError;
-      setCreateUserError(axiosError.message as string);
+      const axiosError = err as AxiosError<{ detail?: unknown }>;
+      const detail = axiosError.response?.data?.detail;
+      setCreateUserError(typeof detail === "string" ? detail : (axiosError.message ?? "فشل في إنشاء المستخدم"));
     } finally {
       setIsCreatingUser(false);
     }
@@ -353,8 +354,9 @@ export default function UserManagement() {
       const response = await updateUserStatus(selectedUserForStatusChange.user_id, {new_status_id: selectedStatusId, reason_for_change: reasonForChange})
 
       if (response.status !== 200) {
-        const axiosError = response.data as AxiosError;
-        throw new Error(axiosError.message as string);
+        const axiosError = response.data as AxiosError<{ detail?: unknown }>;
+        const detail = axiosError.response?.data?.detail;
+        setError(typeof detail === "string" ? detail : (axiosError.message ?? "فشل في تغيير الحالة"));
       }
 
       const updatedUser: User = response.data;
@@ -363,8 +365,9 @@ export default function UserManagement() {
       );
       handleCloseStatusModal();
     } catch (err) {
-      const axiosError = err as AxiosError;
-      setError(axiosError.message as string);
+      const axiosError = err as AxiosError<{ detail?: unknown }>;
+      const detail = axiosError.response?.data?.detail;
+      setError(typeof detail === "string" ? detail : (axiosError.message ?? "فشل في تغيير الحالة"));
     } finally {
       setIsChangingStatus(false);
     }

@@ -137,8 +137,9 @@ export default function ClaimsPage() {
       const data: ApiClaim[] = response.data;
       setClaims((data || []).map(mapApiClaimToClaim));
     } catch (err) {
-      const axiosError = err as AxiosError;
-      setError(axiosError.message as string);
+      const axiosError = err as AxiosError<{ detail?: unknown }>;
+      const detail = axiosError.response?.data?.detail;
+      setError(typeof detail === "string" ? detail : (axiosError.message ?? "فشل تحميل المطالبات"));
     } finally {
       setLoading(false);
     }
@@ -215,8 +216,10 @@ export default function ClaimsPage() {
       }
       closeDecisionModal();
     } catch (err) {
-      const axiosError = err as AxiosError;
-      setDecisionError(axiosError.message as string);
+      const axiosError = err as AxiosError<{ detail?: unknown }>;
+      const detail = axiosError.response?.data?.detail;
+      console.log(detail)
+      setDecisionError(typeof detail === "string" ? detail : (axiosError.message ?? "فشل إرسال القرار"));
     } finally {
       setDecisionSubmitting(false);
     }
@@ -238,8 +241,9 @@ export default function ClaimsPage() {
       setClaims((prev) => prev.map((c) => c.id === selectedClaim.id ? { ...c, status: newLabel as ClaimStatus } : c));
       closeStatusModal();
     } catch (err) {
-      const axiosError = err as AxiosError;
-      setStatusUpdateError(axiosError.message as string);
+      const axiosError = err as AxiosError<{ detail?: unknown }>;
+      const detail = axiosError.response?.data?.detail;
+      setStatusUpdateError(typeof detail === "string" ? detail : (axiosError.message ?? "فشل تحديث الحالة"));
     } finally {
       setStatusUpdating(false);
     }
@@ -256,8 +260,9 @@ export default function ClaimsPage() {
       }
       setNoteText("");
     } catch (err) {
-      const axiosError = err as AxiosError;
-      setCommentError(axiosError.message as string);
+      const axiosError = err as AxiosError<{ detail?: unknown }>;
+      const detail = axiosError.response?.data?.detail;
+      setCommentError(typeof detail === "string" ? detail : (axiosError.message ?? "فشل إرسال التعليق"));
     } finally {
       setCommentSubmitting(false);
     }
@@ -278,7 +283,6 @@ export default function ClaimsPage() {
 
               <div className="flex flex-wrap gap-3">
                 <Button size="sm" className="bg-purple-500 hover:bg-purple-600" onClick={openStatusModal}>تغيير الحالة</Button>
-                <Button size="sm" variant="outline">تعيين</Button>
                 <Button size="sm" variant="outline" onClick={openDecisionModal}>إرسال القرار النهائي</Button>
               </div>
             </div>
@@ -518,8 +522,8 @@ export default function ClaimsPage() {
                 </select>
               </div>
               <div>
-                <Label htmlFor="decision-justification">التبرير</Label>
-                <textarea id="decision-justification" value={decisionJustification} onChange={(e) => setDecisionJustification(e.target.value)} placeholder="تبرير القرار..." rows={3}
+                <Label htmlFor="decision-justification">التبرير <span className="text-red-500">*</span></Label>
+                <textarea required id="decision-justification" value={decisionJustification} onChange={(e) => setDecisionJustification(e.target.value)} placeholder="تبرير القرار..." rows={3}
                 className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-800
                 dark:text-white/90 dark:placeholder:text-white/30" />
               </div>

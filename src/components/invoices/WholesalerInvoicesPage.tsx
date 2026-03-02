@@ -6,7 +6,6 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table"
 import Button from "../ui/button/Button";
 import pdfMake from "pdfmake/build/pdfmake";
 
-// خطوط من public/fonts: Roboto (إنجليزي) + Cairo اختياري (عربي — إن وُجد يظهر النص العربي بشكل صحيح)
 const ROBOTO_VFS_NAMES = [
   "Roboto-Regular.ttf",
   "Roboto-Medium.ttf",
@@ -17,7 +16,6 @@ const ROBOTO_VFS_NAMES = [
 const CAIRO_VFS_NAMES = ["Cairo-Regular.ttf", "Cairo-Bold.ttf"] as const;
 
 let pdfFontsLoaded = false;
-/** الخط الافتراضي للـ PDF: إن وُجدت خطوط Cairo نستخدمها للعربية، وإلا Roboto (يظهر العربي كمربعات). */
 let pdfDefaultFont = "Roboto";
 
 async function ensurePdfFontsLoaded(): Promise<void> {
