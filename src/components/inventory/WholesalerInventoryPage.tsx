@@ -6,9 +6,20 @@ import Button from "../ui/button/Button";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
 import { Modal } from "../ui/modal";
 import Label from "../form/Label";
-import { adjustStock, readMyInventory } from "../../../services/inventories";
-import { AxiosError } from "axios";
+import { adjustStock, readMyInventory, readInventoryProducts, adjustInventoryProductStock } from "../../../services/inventories";
+import { readAllProducts } from "../../../services/products";
 
+interface ApiTranslation {
+  language_code: string;
+  translated_product_name?: string;
+  translated_description?: string | null;
+  translated_short_description?: string | null;
+}
+
+interface ApiProduct {
+  product_id: string;
+  translations: ApiTranslation[];
+}
 
 interface InventoryStatus {
   status_name_key: string;
@@ -60,15 +71,41 @@ const getStatusBadgeColor = (key: string): "success" | "warning" | "error" | "in
   return "primary";
 };
 
+function getErrorMessage(err: unknown, fallback: string): string {
+  const axiosError = err as { response?: { data?: unknown }; message?: string };
+  const data = axiosError.response?.data;
+  if (typeof data === "string") return data;
+  if (data && typeof data === "object") {
+    const d = data as Record<string, unknown>;
+    const detail = d.detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail)) {
+      const messages = detail.map((item) => (item && typeof item === "object" && "msg" in item ? String((item as { msg: unknown }).msg) : String(item)));
+      if (messages.length) return messages.join(". ");
+    }
+    if (typeof d.msg === "string") return d.msg;
+  }
+  return axiosError.message && typeof axiosError.message === "string" ? axiosError.message : fallback;
+}
+
 export default function WholesalerInventoryPage() {
   const [items, setItems] = useState<ApiInventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [adjustStockItem, setAdjustStockItem] = useState<ApiInventoryItem | null>(null);
+  const [adjustItem, setAdjustItem] = useState<ApiInventoryItem | null>(null);
   const [adjustQuantity, setAdjustQuantity] = useState<string>("");
+  const [adjustContext, setAdjustContext] = useState<"myInventory" | "productInventory" | null>(null);
   const [isAdjusting, setIsAdjusting] = useState(false);
   const [adjustError, setAdjustError] = useState<string | null>(null);
+
+  const [productInventory, setProductInventory] = useState<ApiInventoryItem[]>([]);
+  const [productInventoryLoading, setProductInventoryLoading] = useState(false);
+  const [productInventoryError, setProductInventoryError] = useState<string | null>(null);
+  const [productInventoryPage, setProductInventoryPage] = useState(1);
+  const [products, setProducts] = useState<ApiProduct[]>([]);
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [productsLoading, setProductsLoading] = useState(true);
 
   const itemsPerPage = 10;
 
@@ -82,32 +119,76 @@ export default function WholesalerInventoryPage() {
       }
       const data: ApiInventoryItem[] = response.data;
       setItems(data || []);
-    } catch (error) {
-      const axiosError = error as AxiosError;
-      setError(axiosError.message as string);
+    } catch (err) {
+      setError(getErrorMessage(err, "فشل في جلب المخزون"));
     } finally {
       setIsLoading(false);
     }
   }, []);
 
+  const fetchProductInventory = useCallback(async (productId: string) => {
+    setProductInventoryLoading(true);
+    setProductInventoryError(null);
+    try {
+      const response = await readInventoryProducts(productId);
+      if (response.status !== 200) {
+        throw new Error("فشل في جلب مخزون المنتج");
+      }
+      const data: ApiInventoryItem[] = response.data ?? [];
+      setProductInventory(Array.isArray(data) ? data : []);
+      setProductInventoryPage(1);
+    } catch (err) {
+      setProductInventoryError(getErrorMessage(err, "حدث خطأ أثناء جلب مخزون المنتج"));
+      setProductInventory([]);
+    } finally {
+      setProductInventoryLoading(false);
+    }
+  }, []);
+
+  const fetchProducts = useCallback(async () => {
+    setProductsLoading(true);
+    try {
+      const response = await readAllProducts();
+      if (response.status === 200 && Array.isArray(response.data)) {
+        setProducts(response.data as ApiProduct[]);
+      } else {
+        setProducts([]);
+      }
+    } catch {
+      setProducts([]);
+    } finally {
+      setProductsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchInventory();
-  }, [fetchInventory]);
+    fetchProducts();
+  }, [fetchInventory, fetchProducts]);
 
-  const openAdjustModal = (item: ApiInventoryItem) => {
-    setAdjustStockItem(item);
+  const openAdjustMyInventoryModal = (item: ApiInventoryItem) => {
+    setAdjustItem(item);
     setAdjustQuantity("");
+    setAdjustContext("myInventory");
+    setAdjustError(null);
+  };
+
+  const openAdjustProductInventoryModal = (item: ApiInventoryItem) => {
+    setAdjustItem(item);
+    setAdjustQuantity("");
+    setAdjustContext("productInventory");
     setAdjustError(null);
   };
 
   const closeAdjustModal = () => {
-    setAdjustStockItem(null);
+    setAdjustItem(null);
     setAdjustQuantity("");
+    setAdjustContext(null);
     setAdjustError(null);
   };
 
   const handleAdjustStock = async (e: SubmitEvent<HTMLFormElement>) => {
-    if (!adjustStockItem) return;
+    if (!adjustItem || !adjustContext) return;
     e.preventDefault();
     const change = parseInt(adjustQuantity, 10);
     if (Number.isNaN(change) || change === 0) {
@@ -117,15 +198,31 @@ export default function WholesalerInventoryPage() {
     setIsAdjusting(true);
     setAdjustError(null);
     try {
-      const response = await adjustStock(adjustStockItem.product_packaging_option_id, change)
+      let response;
+      if (adjustContext === "myInventory") {
+        response = await adjustStock(adjustItem.product_packaging_option_id, change);
+      } else {
+        if (!selectedProductId) {
+          throw new Error("يجب اختيار منتج أولاً");
+        }
+        response = await adjustInventoryProductStock(
+          adjustItem.product_packaging_option_id,
+          change,
+          selectedProductId
+        );
+      }
+
       if (response.status !== 200) {
         throw new Error("فشل في تعديل الكمية");
       }
+
       closeAdjustModal();
       await fetchInventory();
-    } catch (error) {
-      const axiosError = error as AxiosError;
-      setAdjustError(axiosError.message as string);
+      if (selectedProductId) {
+        await fetchProductInventory(selectedProductId);
+      }
+    } catch (err) {
+      setAdjustError(getErrorMessage(err, "فشل في تعديل الكمية"));
     } finally {
       setIsAdjusting(false);
     }
@@ -134,6 +231,13 @@ export default function WholesalerInventoryPage() {
   const paginatedItems = items.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const totalItems = items.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+
+  const paginatedProductItems = productInventory.slice(
+    (productInventoryPage - 1) * itemsPerPage,
+    productInventoryPage * itemsPerPage
+  );
+  const totalProductItems = productInventory.length;
+  const totalProductPages = Math.max(1, Math.ceil(totalProductItems / itemsPerPage));
 
   return (
     <div className="space-y-6">
@@ -191,7 +295,7 @@ export default function WholesalerInventoryPage() {
                         <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">{item.location_identifier || "—"}</TableCell>
                         <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">{formatDate(item.created_at)}</TableCell>
                         <TableCell className="py-3">
-                          <Button size="sm" variant="outline" onClick={() => openAdjustModal(item)}>تعديل الكمية</Button>
+                          <Button size="sm" variant="outline" onClick={() => openAdjustMyInventoryModal(item)}>تعديل الكمية</Button>
                         </TableCell>
                       </TableRow>
                     );
@@ -234,11 +338,148 @@ export default function WholesalerInventoryPage() {
         )}
       </div>
 
-      <Modal isOpen={!!adjustStockItem} onClose={closeAdjustModal} className="max-w-[420px] p-5 lg:p-6">
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/3 sm:px-6">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">مخزون حسب المنتج</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">اختر منتجاً لعرض أصناف المخزون المرتبطة به</p>
+        </div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            fetchProductInventory(selectedProductId);
+          }}
+          className="mb-6 flex flex-wrap items-end gap-3"
+        >
+          <div className="min-w-[220px]">
+            <Label>المنتج</Label>
+            <select
+              value={selectedProductId}
+              onChange={(e) => {
+                const v = e.target.value;
+                setSelectedProductId(v);
+                setProductInventoryError(null);
+              }}
+              disabled={productsLoading}
+              className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800"
+            >
+              <option value="">-- اختر منتجًا --</option>
+              {products.map((p) => {
+                const pid = p.product_id;
+                const label = p.translations[0]?.translated_product_name;
+                return <option key={pid} value={pid}>{label}</option>;
+              })}
+            </select>
+          </div>
+          <button
+            type="submit"
+            disabled={productInventoryLoading || selectedProductId === ""}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-3 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-brand-300"
+          >
+            {productInventoryLoading ? "جاري التحميل..." : "عرض المخزون"}
+          </button>
+        </form>
+        {productInventoryError && (
+          <div className="mb-4 p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800">
+            {productInventoryError}
+          </div>
+        )}
+        {productInventoryLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-gray-500 dark:text-gray-400">جاري التحميل...</div>
+          </div>
+        ) : productInventory.length === 0 && selectedProductId !== "" && !productInventoryError ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-gray-500 dark:text-gray-400">لا يوجد مخزون لهذا المنتج</div>
+          </div>
+        ) : productInventory.length === 0 ? null : (
+          <>
+            <div className="max-w-full overflow-x-auto">
+              <Table>
+                <TableHeader className="border-gray-100 dark:border-gray-800 border-y">
+                  <TableRow>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">معرف الصنف</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">خيار التغليف</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">الكمية الفعلية</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">الكمية المحجوزة</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">الكمية المتاحة</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">الحالة</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">آخر إعادة تخزين</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">موقع التخزين</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">تاريخ الإنشاء</TableCell>
+                    <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">إجراءات</TableCell>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {paginatedProductItems.map((item) => {
+                    const statusKey = item.status?.status_name_key || "";
+                    const statusLabel = STATUS_LABELS[statusKey] || statusKey;
+                    return (
+                      <TableRow key={item.inventory_item_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                        <TableCell className="py-3 font-medium text-gray-800 text-theme-sm dark:text-white/90">{item.inventory_item_id}</TableCell>
+                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">{item.product_packaging_option_id}</TableCell>
+                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">{item.on_hand_quantity}</TableCell>
+                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">{item.reserved_quantity}</TableCell>
+                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">{item.available_quantity}</TableCell>
+                        <TableCell className="py-3">
+                          <Badge size="sm" color={getStatusBadgeColor(statusKey)}>{statusLabel}</Badge>
+                        </TableCell>
+                        <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">{item.last_restock_date ? formatDate(item.last_restock_date) : "—"}</TableCell>
+                        <TableCell className="py-3 text-gray-800 text-theme-sm dark:text-white/90">{item.location_identifier || "—"}</TableCell>
+                        <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">{formatDate(item.created_at)}</TableCell>
+                        <TableCell className="py-3">
+                          <Button size="sm" variant="outline" onClick={() => openAdjustProductInventoryModal(item)}>تعديل الكمية</Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+            {totalProductPages > 1 && (
+              <div className="flex items-center justify-between gap-4 pt-6">
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  عرض {Math.min((productInventoryPage - 1) * itemsPerPage + 1, totalProductItems)}-
+                  {Math.min(productInventoryPage * itemsPerPage, totalProductItems)} من {totalProductItems}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setProductInventoryPage((p) => Math.max(1, p - 1))}
+                    disabled={productInventoryPage === 1}
+                    className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                  >
+                    السابق
+                  </button>
+                  {Array.from({ length: Math.min(5, totalProductPages) }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => setProductInventoryPage(page)}
+                      className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${productInventoryPage === page ? "bg-purple-500 text-white" : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"}`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setProductInventoryPage((p) => Math.min(totalProductPages, p + 1))}
+                    disabled={productInventoryPage >= totalProductPages}
+                    className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                  >
+                    التالي
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <Modal isOpen={!!adjustItem} onClose={closeAdjustModal} className="max-w-[420px] p-5 lg:p-6">
         <form onSubmit={handleAdjustStock}>
           <h4 className="mb-4 text-lg font-medium text-gray-800 dark:text-white/90">تعديل الكمية</h4>
-          {adjustStockItem && (
-            <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">خيار التغليف: {adjustStockItem.product_packaging_option_id} — الكمية الحالية: {adjustStockItem.on_hand_quantity}</p>
+          {adjustItem && (
+            <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">خيار التغليف: {adjustItem.product_packaging_option_id} — الكمية الحالية: {adjustItem.on_hand_quantity}</p>
           )}
           <div className="mb-4">
             <Label>التغيير في الكمية</Label>

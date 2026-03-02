@@ -12,3 +12,16 @@ export async function adjustStock(productPackagingOptionId: number, changeInQuan
     })
     return response
 }
+
+export async function readInventoryProducts(product_id: string){
+    const response = await api.get(`api/v1/inventory/products/${product_id}`)
+    return response
+}
+
+export async function adjustInventoryProductStock(productPackagingOptionId: number, changeInQuantity: number, productId: string){
+    const response = await api.post(`api/v1/inventory/products/${productId}/adjust`, {
+        product_packaging_option_id: productPackagingOptionId,
+        change_in_quantity: changeInQuantity
+    })
+    return response
+}
