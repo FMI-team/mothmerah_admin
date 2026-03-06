@@ -122,19 +122,29 @@ interface Invoice {
 }
 
 interface MoyasarPaymentSource {
+  // Common fields
   type?: string;
   company?: string;
   name?: string;
   number?: string;
-}
 
-interface MoyasarPayment {
-  id: string;
-  status: string;
-  amount: number;
-  amount_format: string;
-  created_at: string;
-  source?: MoyasarPaymentSource | null;
+  // Card payments
+  gateway_id?: string;
+  reference_number?: string | null;
+  token?: string | null;
+  message?: string;
+  transaction_url?: string | null;
+  response_code?: string | null;
+  authorization_code?: string | null;
+  issuer_name?: string;
+  issuer_country?: string;
+  issuer_card_type?: string;
+  issuer_card_category?: string;
+
+  // STC Pay payments
+  mobile?: string;
+  branch?: string;
+  cashier?: string;
 }
 
 interface MoyasarMetadata {
@@ -142,7 +152,34 @@ interface MoyasarMetadata {
   customer_email?: string;
   cart_id?: string;
   client_name?: string;
+  order_id?: string;
+  cart_items_count?: number;
   [key: string]: unknown;
+}
+
+interface MoyasarPayment {
+  id: string;
+  status: string;
+  amount: number;
+  fee: number;
+  currency: string;
+  refunded: number;
+  refunded_at?: string | null;
+  captured: number;
+  captured_at?: string | null;
+  voided_at?: string | null;
+  description: string;
+  amount_format: string;
+  fee_format: string;
+  refunded_format: string;
+  captured_format: string;
+  invoice_id?: string | null;
+  ip?: string | null;
+  callback_url?: string | null;
+  created_at: string;
+  updated_at: string;
+  metadata?: MoyasarMetadata | null;
+  source?: MoyasarPaymentSource | null;
 }
 
 interface MoyasarInvoice {
@@ -272,21 +309,22 @@ export default function InvoicesPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`https://api.moyasar.com/v1/invoices?page=${page}`, {
+      const res = await fetch(`https://api.moyasar.com/v1/payments?page=${page}`, {
         method: "GET",
         headers: {
           Authorization: `Basic ${process.env.NEXT_PUBLIC_CREDENTIALS}`,
           "Content-Type": "application/json",
         }
       });
+      
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error((data as { error?: string }).error ?? "فشل في جلب الفواتير");
       }
-      if (!data.invoices || !Array.isArray(data.invoices)) {
+      if (!data.payments || !Array.isArray(data.payments)) {
         throw new Error("استجابة غير صالحة");
       }
-      setInvoices(data.invoices.map(mapMoyasarInvoiceToInvoice));
+      setInvoices(data.payments.map(mapMoyasarInvoiceToInvoice));
       setTotalPages(data.meta?.total_pages ?? 1);
       setTotalItems(data.meta?.total_count ?? 0);
     } catch (err) {
@@ -300,7 +338,7 @@ export default function InvoicesPage() {
     setInvoiceDetailsError(null);
     setInvoiceDetailsLoading(true);
     try {
-      const res = await fetch(`https://api.moyasar.com/v1/invoices/${encodeURIComponent(invoiceId)}`, {
+      const res = await fetch(`https://api.moyasar.com/v1/payments/${encodeURIComponent(invoiceId)}`, {
         method: "GET",
         headers: {
           Authorization: `Basic ${process.env.NEXT_PUBLIC_CREDENTIALS}`,
