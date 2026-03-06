@@ -12,7 +12,7 @@ import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Modal } from "../ui/modal";
 import Label from "../form/Label";
 import Button from "../ui/button/Button";
-import { createUser, deleteUser, readUsers, updateUserStatus } from "../../../services/users";
+import { createUser, readUsers, updateUserStatus } from "../../../services/users";
 import { AxiosError } from "axios";
 
 interface Translation {
@@ -119,14 +119,14 @@ interface UserTypeOption {
 
 const USER_TYPES: UserTypeOption[] = [
   { user_type_id: 1, user_type_name_key: "BASE_USER" },
-  { user_type_id: 2, user_type_name_key: "WHOLESALER" },
-  { user_type_id: 3, user_type_name_key: "ADMIN" }
+  { user_type_id: 2, user_type_name_key: "ADMIN" },
+  { user_type_id: 3, user_type_name_key: "WHOLESALER" }
 ];
 
 const USER_TYPE_LABELS: Record<string, string> = {
   BASE_USER: "مستخدم أساسي",
-  WHOLESALER: "تاجر جملة",
-  ADMIN: "مسؤول"
+  ADMIN: "مسؤول",
+  WHOLESALER: "تاجر جملة"
 };
 
 interface LanguageOption {
@@ -205,7 +205,7 @@ export default function UserManagement() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await readUsers()
+      const response = await readUsers({ include_deleted: true });
       if (response.status !== 200) {
         throw new Error("Failed to fetch users");
       }
@@ -254,22 +254,25 @@ export default function UserManagement() {
   };
 
   const handleDeleteUser = async (userId: string, userName: string) => {
-    if (!confirm(`هل أنت متأكد من حذف المستخدم "${userName}"?`)) {
+    if (!confirm(`هل أنت متأكد من حذف المستخدم "${userName}"؟ سيتم تغيير حالته إلى "محذوف" وستبقى بياناته في النظام.`)) {
       return;
     }
 
+    const deletedStatusId = 4;
     try {
-      const response = await deleteUser(userId)
+      const response = await updateUserStatus(userId, {
+        new_status_id: deletedStatusId,
+        reason_for_change: "حذف من لوحة التحكم",
+      });
 
       if (response.status !== 200) {
-        const axiosError = response.data as AxiosError;
-        throw new Error(axiosError.message as string);
+        const data = response.data as { detail?: unknown };
+        const detail = data.detail;
+        throw new Error(typeof detail === "string" ? detail : "فشل في تغيير الحالة");
       }
 
-      setUsers((prevUsers) => prevUsers.filter((user) => user.user_id !== userId));
-
+      await fetchUsers();
       setSelectedUsers((prev) => prev.filter((id) => id !== userId));
-
       setError(null);
     } catch (err) {
       const axiosError = err as AxiosError<{ detail?: unknown }>;
@@ -311,7 +314,7 @@ export default function UserManagement() {
     setCreateUserError(null);
   };
 
-  const handleCreateUser = async (e: React.FormEvent) => {
+  const handleCreateUser = async (e: React.SubmitEvent) => {
     e.preventDefault();
     
     if (!newUserForm.phone_number || !newUserForm.first_name || !newUserForm.last_name || !newUserForm.password) {
@@ -326,11 +329,12 @@ export default function UserManagement() {
       const response = await createUser(newUserForm)
 
       if (response.status !== 200) {
-        const axiosError = response.data as AxiosError;
-        throw new Error(axiosError.message as string);
+        const data = response.data as { detail?: unknown };
+        const detail = data.detail;
+        setCreateUserError(typeof detail === "string" ? detail : "فشل في إنشاء المستخدم");
       }
 
-      handleCloseCreateUserModal();
+      setIsCreateUserModalOpen(false);
       await fetchUsers();
     } catch (err) {
       const axiosError = err as AxiosError<{ detail?: unknown }>;
@@ -354,9 +358,9 @@ export default function UserManagement() {
       const response = await updateUserStatus(selectedUserForStatusChange.user_id, {new_status_id: selectedStatusId, reason_for_change: reasonForChange})
 
       if (response.status !== 200) {
-        const axiosError = response.data as AxiosError<{ detail?: unknown }>;
-        const detail = axiosError.response?.data?.detail;
-        setError(typeof detail === "string" ? detail : (axiosError.message ?? "فشل في تغيير الحالة"));
+        const data = response.data as { detail?: unknown };
+        const detail = data.detail;
+        setError(typeof detail === "string" ? detail : "فشل في تغيير الحالة");
       }
 
       const updatedUser: User = response.data;
