@@ -20,6 +20,7 @@ import {
 } from "../ui/table";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
+import { AxiosError } from "axios";
 
 const LOW_STOCK_THRESHOLD = 10;
 
@@ -49,7 +50,6 @@ function getStatusBadgeColor(
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("ar-SA", { style: "decimal", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value) + " ر.س";
 
-// ترجمة الحالة ووحدة القياس للعربية (عند عدم وجود translations من API)
 const STATUS_AR: Record<string, string> = {
   ACTIVE: "نشط",
   INACTIVE: "غير نشط",
@@ -132,23 +132,23 @@ export default function WarehouseManagement() {
   };
 
   useEffect(() => {
-    let cancelled = false;
+    const cancelled = false;
     setSummaryLoading(true);
     setSummaryError(null);
     const search = searchQuery.trim() || undefined;
-    readInventorySummary(undefined, undefined, search)
-      .then((res) => {
-        if (!cancelled && res.status === 200) setSummary(res.data);
-      })
-      .catch(() => {
-        if (!cancelled) setSummaryError("فشل في جلب ملخص المخزون");
-      })
-      .finally(() => {
+    const fetchSummary = async () => {
+      try {
+        const response = await readInventorySummary(undefined, undefined, search);
+        if (!cancelled && response.status === 200) setSummary(response.data);
+      } catch (error: unknown) {
+        const axiosError = error as AxiosError<{ detail?: unknown }>;
+        setSummaryError(typeof axiosError.response?.data?.detail === "string" ? axiosError.response?.data?.detail : axiosError.message ?? "فشل في جلب ملخص المخزون");
+      }
+      finally {
         if (!cancelled) setSummaryLoading(false);
-      });
-    return () => {
-      cancelled = true;
+      }
     };
+    fetchSummary();
   }, [searchQuery]);
 
   useEffect(() => {
