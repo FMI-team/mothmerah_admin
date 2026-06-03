@@ -1,5 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -12,8 +10,9 @@ import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Modal } from "../ui/modal";
 import Label from "../form/Label";
 import Button from "../ui/button/Button";
-import { createUser, readUsers, updateUserStatus } from "../../../services/users";
+import { readUsers, updateUserStatus } from "../../../services/users";
 import { AxiosError } from "axios";
+import AddUserForm from "./AddUserForm";
 
 interface Translation {
   language_code: string;
@@ -112,37 +111,6 @@ const ACCOUNT_STATUS_LABELS: Record<string, string> = {
   DELETED: "محذوف"
 };
 
-interface UserTypeOption {
-  user_type_id: number;
-  user_type_name_key: string;
-}
-
-const USER_TYPES: UserTypeOption[] = [
-  { user_type_id: 1, user_type_name_key: "BASE_USER" },
-  { user_type_id: 2, user_type_name_key: "ADMIN" },
-  { user_type_id: 3, user_type_name_key: "WHOLESALER" }
-];
-
-const USER_TYPE_LABELS: Record<string, string> = {
-  BASE_USER: "مستخدم أساسي",
-  ADMIN: "مسؤول",
-  WHOLESALER: "تاجر جملة"
-};
-
-interface LanguageOption {
-  code: string;
-  name: string;
-}
-
-const LANGUAGES: LanguageOption[] = [
-  { code: "ar", name: "العربية" },
-  { code: "en", name: "English" },
-  { code: "fr", name: "Français" },
-  { code: "ur", name: "اردو" },
-  { code: "hi", name: "हिन्दी" },
-  { code: "bn", name: "বাংলা" }
-];
-
 const getArabicTranslation = (
   translations: Translation[],
   field: "translated_status_name" | "translated_role_name" | "translated_user_type_name"
@@ -188,18 +156,7 @@ export default function UserManagement() {
   const [selectedStatusId, setSelectedStatusId] = useState<number | null>(null);
   const [reasonForChange, setReasonForChange] = useState("");
   const [isChangingStatus, setIsChangingStatus] = useState(false);
-  const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
-  const [isCreatingUser, setIsCreatingUser] = useState(false);
-  const [createUserError, setCreateUserError] = useState<string | null>(null);
-  const [newUserForm, setNewUserForm] = useState({
-    phone_number: "",
-    first_name: "",
-    last_name: "",
-    password: "",
-    user_type_id: 1,
-    account_status_id: 1,
-    preferred_language_code: "ar",
-  });
+  const [view, setView] = useState<"list" | "add">("list");
 
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
@@ -222,7 +179,7 @@ export default function UserManagement() {
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [fetchUsers]);
 
   const toggleUserSelection = (userId: string) => {
     setSelectedUsers((prev) => prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]);
@@ -295,56 +252,6 @@ export default function UserManagement() {
     setReasonForChange("");
   };
 
-  const handleOpenCreateUserModal = () => {
-    setNewUserForm({
-      phone_number: "",
-      first_name: "",
-      last_name: "",
-      password: "",
-      user_type_id: 1,
-      account_status_id: 1,
-      preferred_language_code: "ar",
-    });
-    setCreateUserError(null);
-    setIsCreateUserModalOpen(true);
-  };
-
-  const handleCloseCreateUserModal = () => {
-    setIsCreateUserModalOpen(false);
-    setCreateUserError(null);
-  };
-
-  const handleCreateUser = async (e: React.SubmitEvent) => {
-    e.preventDefault();
-    
-    if (!newUserForm.phone_number || !newUserForm.first_name || !newUserForm.last_name || !newUserForm.password) {
-      setCreateUserError("يرجى ملء جميع الحقول المطلوبة");
-      return;
-    }
-
-    setIsCreatingUser(true);
-    setCreateUserError(null);
-
-    try {
-      const response = await createUser(newUserForm)
-
-      if (response.status !== 200) {
-        const data = response.data as { detail?: unknown };
-        const detail = data.detail;
-        setCreateUserError(typeof detail === "string" ? detail : "فشل في إنشاء المستخدم");
-      }
-
-      setIsCreateUserModalOpen(false);
-      await fetchUsers();
-    } catch (err) {
-      const axiosError = err as AxiosError<{ detail?: unknown }>;
-      const detail = axiosError.response?.data?.detail;
-      setCreateUserError(typeof detail === "string" ? detail : (axiosError.message ?? "فشل في إنشاء المستخدم"));
-    } finally {
-      setIsCreatingUser(false);
-    }
-  };
-
   const handleChangeUserStatus = async () => {
     if (!selectedUserForStatusChange || !selectedStatusId) {
       setError("يرجى تحديد الحالة الجديدة");
@@ -377,6 +284,18 @@ export default function UserManagement() {
     }
   };
 
+  if (view === "add") {
+    return (
+      <AddUserForm
+        onCancel={() => setView("list")}
+        onCreated={() => {
+          setView("list");
+          fetchUsers();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -384,7 +303,7 @@ export default function UserManagement() {
         <p className="mt-2 text-gray-500 dark:text-gray-400">ادارة المستخدمين</p>
       </div>
 
-      <button onClick={handleOpenCreateUserModal} className="inline-flex items-center gap-2 rounded-lg bg-purple-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs
+      <button onClick={() => setView("add")} className="inline-flex items-center gap-2 rounded-lg bg-purple-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs
       hover:bg-purple-600">
         <PlusIcon className="w-4 h-4" />
         اضافة مستخدم جديد
@@ -476,8 +395,7 @@ export default function UserManagement() {
                                     setActionDropdownOpen(null);
                                     handleDeleteUser(user.user_id, `${user.first_name} ${user.last_name}`);
                                   }} className="flex w-full font-normal text-right text-gray-500 rounded-lg hover:bg-gray-100 hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5
-                                  dark:hover:text-red-300"
-                                  >
+                                  dark:hover:text-red-300">
                                     حذف المستخدم
                                   </DropdownItem>
                                 </Dropdown>
@@ -543,101 +461,6 @@ export default function UserManagement() {
           )}
         </div>
       </Modal>
-
-      <Modal isOpen={isCreateUserModalOpen} onClose={handleCloseCreateUserModal} className="max-w-[600px] p-5 lg:p-10">
-        <form onSubmit={handleCreateUser} className="space-y-6">
-          <h4 className="font-semibold text-gray-800 text-title-sm dark:text-white/90">إضافة مستخدم جديد</h4>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <Label> الاسم الأول <span className="text-error-500">*</span></Label>
-              <input type="text" value={newUserForm.first_name} onChange={(e) => setNewUserForm((prev) => ({ ...prev, first_name: e.target.value }))} placeholder="أدخل الاسم الأول" className="h-11
-              w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none
-              focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder-white/30 dark:focus:border-brand-800" />
-            </div>
-
-            <div>
-              <Label>الاسم الأخير <span className="text-error-500">*</span></Label>
-              <input type="text" value={newUserForm.last_name} onChange={(e) => setNewUserForm((prev) => ({ ...prev, last_name: e.target.value }))} placeholder="أدخل الاسم الأخير" className="h-11
-              w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none
-              focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder-white/30 dark:focus:border-brand-800" />
-            </div>
-
-            <div className="sm:col-span-2">
-              <Label> رقم الهاتف <span className="text-error-500">*</span></Label>
-              <input type="tel" value={newUserForm.phone_number} onChange={(e) => setNewUserForm((prev) => ({ ...prev, phone_number: e.target.value }))} placeholder="+966538509289" dir="ltr"
-              className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300
-              focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder-white/30 dark:focus:border-brand-800"
-              />
-            </div>
-
-            <div className="sm:col-span-2">
-              <Label>كلمة المرور <span className="text-error-500">*</span></Label>
-              <input type="password" value={newUserForm.password} onChange={(e) => setNewUserForm((prev) => ({ ...prev, password: e.target.value }))} placeholder="أدخل كلمة المرور" className="h-11
-              w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none
-              focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder-white/30 dark:focus:border-brand-800" />
-            </div>
-
-            <div>
-              <Label> نوع المستخدم <span className="text-error-500">*</span></Label>
-              <select value={newUserForm.user_type_id} onChange={(e) => setNewUserForm((prev) => ({
-                ...prev,
-                user_type_id: parseInt(e.target.value, 10)
-              }))} className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden
-              focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800">
-                {USER_TYPES.map((type) => (
-                  <option key={type.user_type_id} value={type.user_type_id}>{USER_TYPE_LABELS[type.user_type_name_key] || type.user_type_name_key}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <Label>حالة الحساب <span className="text-error-500">*</span></Label>
-              <select value={newUserForm.account_status_id} onChange={(e) => setNewUserForm((prev) => ({
-                ...prev,
-                account_status_id: parseInt(e.target.value, 10)
-              }))} className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden
-              focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800">
-                {ACCOUNT_STATUSES.map((status) => (
-                  <option key={status.account_status_id} value={status.account_status_id}>{ACCOUNT_STATUS_LABELS[status.status_name_key] || status.status_name_key}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="sm:col-span-2">
-              <Label>اللغة المفضلة <span className="text-error-500">*</span></Label>
-              <select value={newUserForm.preferred_language_code} onChange={(e) => setNewUserForm((prev) => ({
-                ...prev,
-                preferred_language_code: e.target.value
-              }))} className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden
-              focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90 dark:focus:border-brand-800">
-                {LANGUAGES.map((lang) => (
-                  <option key={lang.code} value={lang.code}>{lang.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {createUserError && (
-            <div className="p-4 text-sm text-error-600 bg-error-50 border border-error-200 rounded-lg dark:bg-error-900/20 dark:text-error-400 dark:border-error-800">
-              {createUserError}
-            </div>
-          )}
-
-          <div className="flex items-center justify-end gap-3 pt-4">
-            <button type="button" onClick={handleCloseCreateUserModal} disabled={isCreatingUser} className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-3 text-sm
-            font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition hover:bg-gray-50 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700
-            dark:hover:bg-white/3 dark:hover:text-gray-300">
-              إلغاء
-            </button>
-            <button type="submit" disabled={isCreatingUser} className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-3 text-sm font-medium text-white
-            shadow-theme-xs transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-brand-300">
-              {isCreatingUser ? "جاري الإنشاء..." : "إنشاء المستخدم"}
-            </button>
-          </div>
-        </form>
-      </Modal>
     </div>
   );
 }
-

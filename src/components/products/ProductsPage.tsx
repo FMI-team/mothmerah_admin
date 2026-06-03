@@ -11,6 +11,7 @@ import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import EditProductForm from "./EditProductForm";
 import { readAllProducts } from "../../../services/products";
 import AdminCreateProductForm from "./AdminCreateProductForm";
+import SmartPricingDrawer from "./SmartPricingDrawer";
 
 interface ApiTranslation {
   language_code: string;
@@ -181,6 +182,8 @@ export default function ProductsPage() {
   const [isCreateProductModalOpen, setIsCreateProductModalOpen] = useState(false);
   const [isEditProductModalOpen, setIsEditProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ApiProduct | null>(null);
+  const [isSmartPricingOpen, setIsSmartPricingOpen] = useState(false);
+  const [smartPricingProduct, setSmartPricingProduct] = useState<Product | null>(null);
 
   const itemsPerPage = 6;
 
@@ -361,7 +364,7 @@ export default function ProductsPage() {
                           dark:text-gray-400 dark:hover:bg-gray-800">
                             <MoreDotIcon className="h-5 w-5" />
                           </button>
-                          <Dropdown isOpen={actionDropdownOpen === product.id} onClose={() => setActionDropdownOpen(null)} className="absolute left-0 z-50 mt-2 w-40 p-2">
+                          <Dropdown isOpen={actionDropdownOpen === product.id} onClose={() => setActionDropdownOpen(null)} className="absolute left-0 z-50 mt-2 w-52 p-2">
                             <DropdownItem onItemClick={() => {
                               setActionDropdownOpen(null);
                               router.push(`${pathname}/${product.id}`);
@@ -379,6 +382,14 @@ export default function ProductsPage() {
                             }} className="flex w-full rounded-lg font-normal text-right text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5
                             dark:hover:text-gray-300">
                               تعديل
+                            </DropdownItem>
+                            <DropdownItem onItemClick={() => {
+                              setActionDropdownOpen(null);
+                              setSmartPricingProduct(product);
+                              setIsSmartPricingOpen(true);
+                            }} className="flex w-full rounded-lg font-normal text-right text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5
+                            dark:hover:text-gray-300">
+                              إعدادات التسعير الذكي
                             </DropdownItem>
                             <DropdownItem onItemClick={() => {setActionDropdownOpen(null);}} className="flex w-full rounded-lg font-normal text-right text-gray-500 hover:bg-gray-100
                             hover:text-red-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-red-300">
@@ -439,8 +450,14 @@ export default function ProductsPage() {
           fetchProducts();
         }
       }} product={editingProduct} />
+
+      <SmartPricingDrawer
+        isOpen={isSmartPricingOpen}
+        onClose={() => {
+          setIsSmartPricingOpen(false);
+          setSmartPricingProduct(null);
+        }}
+        productName={smartPricingProduct?.name} />
     </div>
   );
 }
-
-

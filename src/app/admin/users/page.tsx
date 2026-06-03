@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import React from "react";
 import UserManagement from "@/components/users/UserManagement";
 
 export const metadata: Metadata = {
@@ -10,5 +9,3 @@ export const metadata: Metadata = {
 export default function UsersPage() {
   return <UserManagement />;
 }
-
-
