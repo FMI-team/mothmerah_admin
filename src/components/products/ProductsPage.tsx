@@ -184,6 +184,7 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<ApiProduct | null>(null);
   const [isSmartPricingOpen, setIsSmartPricingOpen] = useState(false);
   const [smartPricingProduct, setSmartPricingProduct] = useState<Product | null>(null);
+  const [smartPricingApiProduct, setSmartPricingApiProduct] = useState<ApiProduct | null>(null);
 
   const itemsPerPage = 6;
 
@@ -385,7 +386,9 @@ export default function ProductsPage() {
                             </DropdownItem>
                             <DropdownItem onItemClick={() => {
                               setActionDropdownOpen(null);
+                              const apiProduct = apiProducts.find((p) => p.product_id === product.id) ?? null;
                               setSmartPricingProduct(product);
+                              setSmartPricingApiProduct(apiProduct);
                               setIsSmartPricingOpen(true);
                             }} className="flex w-full rounded-lg font-normal text-right text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5
                             dark:hover:text-gray-300">
@@ -456,8 +459,11 @@ export default function ProductsPage() {
         onClose={() => {
           setIsSmartPricingOpen(false);
           setSmartPricingProduct(null);
+          setSmartPricingApiProduct(null);
         }}
-        productName={smartPricingProduct?.name} />
+        productName={smartPricingProduct?.name}
+        packagingOptionId={(smartPricingApiProduct?.packaging_options?.find((p) => p.is_default_option) ?? smartPricingApiProduct?.packaging_options?.[0])?.packaging_option_id}
+      />
     </div>
   );
 }

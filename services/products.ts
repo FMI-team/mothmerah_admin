@@ -20,6 +20,11 @@ export async function updateProduct(productId: string, data: unknown) {
     return response
 }
 
+export async function updatePackagingOption(productId: string, packagingOptionId: number, data: unknown) {
+    const response = await api.patch(`api/v1/products/${productId}/packaging-options/${packagingOptionId}`, data)
+    return response
+}
+
 export async function createProduct(data: FormData) {
     const response = await api.post("api/v1/products/", data);
     return response;

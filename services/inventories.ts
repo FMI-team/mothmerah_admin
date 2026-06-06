@@ -88,7 +88,6 @@ export async function readInventoryAdminProducts(
     return response;
 }
 
-// Product detail (single product) API response
 export interface CategoryTranslation {
     language_code: string;
     translated_category_name: string;

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AxiosError } from "axios";
 import { PlusIcon, TrashBinIcon } from "@/icons";
+import { assignPricingRuleToPackagingOption, createPricingRule } from "../../../services/pricing";
 
 interface Tier {
   id: number;
@@ -12,18 +14,45 @@ interface Tier {
 
 type DiscountType = "percentage" | "fixed";
 
+const DISCOUNT_TYPE_MAP: Record<DiscountType, "PERCENTAGE" | "NEW_PRICE"> = {
+  percentage: "PERCENTAGE",
+  fixed: "NEW_PRICE"
+};
+
 interface SmartPricingDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   productName?: string;
-  onSave?: (settings: {
-    enabled: boolean;
-    discountType: DiscountType;
-    tiers: { from: number; to: number; price: number }[];
-  }) => void;
+  packagingOptionId?: number;
+  onSave?: () => void;
 }
 
-const ARABIC_ORDINALS = ["الأولى", "الثانية", "الثالثة", "الرابعة", "الخامسة", "السادسة", "السابعة", "الثامنة"];
+const slugify = (value: string): string => value.trim().replace(/\s+/g, "_").replace(/[^\p{L}\p{N}_]/gu, "").toUpperCase();
+
+const buildRuleNameKey = (productName?: string): string => {
+  const base = productName ? slugify(productName) : "";
+  return `${base ? `${base}_` : ""}PRICING_${Date.now()}`;
+};
+
+const apiDetailToString = (detail: unknown): string => {
+  if (detail == null) return "";
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return (
+      detail.map((d) => (d && typeof d === "object" && "msg" in d ? String((d as { msg?: string }).msg) : String(d))).filter(Boolean).join(" — ") || ""
+    );
+  }
+  if (typeof detail === "object" && detail !== null && "msg" in detail) return String((detail as { msg: unknown }).msg);
+  return String(detail);
+};
+
+const getCreatedRuleId = (data: unknown): number | null => {
+  if (!data || typeof data !== "object") return null;
+  const record = data as Record<string, unknown>;
+  const id = record.rule_id ?? record.pricing_rule_id ?? record.id;
+  return typeof id === "number" ? id : null;
+};
+
 
 const defaultTiers = (): Tier[] => [
   { id: 1, from: "1", to: "10", price: "50" },
@@ -47,16 +76,24 @@ const CoinIcon = ({ className = "" }: { className?: string }) => (
 const tierInputClass =
   "h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-center text-sm font-semibold text-purple-600 focus:border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-purple-300";
 
-export default function SmartPricingDrawer({ isOpen, onClose, onSave }: SmartPricingDrawerProps) {
+export default function SmartPricingDrawer({ isOpen, onClose, productName, packagingOptionId, onSave }: SmartPricingDrawerProps) {
   const [enabled, setEnabled] = useState(true);
   const [discountType, setDiscountType] = useState<DiscountType>("fixed");
   const [tiers, setTiers] = useState<Tier[]>(defaultTiers);
+  const [pricingRuleId, setPricingRuleId] = useState<number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setEnabled(true);
       setDiscountType("fixed");
       setTiers(defaultTiers());
+      setPricingRuleId(null);
+      setIsSaving(false);
+      setIsAssigning(false);
+      setError(null);
     }
   }, [isOpen]);
 
@@ -85,34 +122,116 @@ export default function SmartPricingDrawer({ isOpen, onClose, onSave }: SmartPri
     setTiers((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const handleSave = () => {
-    onSave?.({
-      enabled,
-      discountType,
-      tiers: tiers.map((t) => ({
-        from: Number(t.from) || 0,
-        to: Number(t.to) || 0,
-        price: Number(t.price) || 0
-      }))
-    });
-    onClose();
+  const handleToggleEnabled = async () => {
+    const nextEnabled = !enabled;
+    setEnabled(nextEnabled);
+    setError(null);
+
+    if (pricingRuleId == null) return;
+
+    if (packagingOptionId == null) {
+      setEnabled(!nextEnabled);
+      setError("لا يوجد خيار تغليف لهذا المنتج لتفعيل قاعدة التسعير عليه");
+      return;
+    }
+
+    setIsAssigning(true);
+    try {
+      const response = await assignPricingRuleToPackagingOption({
+        rule_id: pricingRuleId,
+        packaging_option_id: packagingOptionId,
+        is_active: nextEnabled
+      });
+
+      if (response.status !== 200 && response.status !== 201) {
+        const data = response.data as { detail?: unknown };
+        throw new Error(apiDetailToString(data?.detail) || "فشل تحديث حالة قاعدة التسعير");
+      }
+    } catch (err) {
+      setEnabled(!nextEnabled);
+      const axiosError = err as AxiosError<{ detail?: unknown }>;
+      const detail = axiosError.response?.data?.detail;
+      setError(apiDetailToString(detail) || axiosError.message || "فشل تحديث حالة قاعدة التسعير");
+    } finally {
+      setIsAssigning(false);
+    }
   };
 
-  const numericTiers = tiers .map((t) => ({ from: Number(t.from), to: Number(t.to), price: Number(t.price) })) .filter((t) => Number.isFinite(t.from) && Number.isFinite(t.to));
+  const handleSave = async () => {
+    const discount_type = DISCOUNT_TYPE_MAP[discountType];
 
-  let preview: { sampleQty: number; tierLabel: string; price: number; basePrice: number } | null = null;
-  if (numericTiers.length >= 2) {
-    const lastTier = numericTiers[numericTiers.length - 1];
-    const sampleQty = (lastTier.to || lastTier.from) + 10;
-    let appliedIndex = numericTiers.findIndex((t) => sampleQty >= t.from && sampleQty <= t.to);
-    if (appliedIndex === -1) appliedIndex = numericTiers.length - 1;
-    preview = {
-      sampleQty,
-      tierLabel: ARABIC_ORDINALS[appliedIndex] ?? `${appliedIndex + 1}`,
-      price: numericTiers[appliedIndex].price,
-      basePrice: numericTiers[0].price
-    };
-  }
+    const validTiers = tiers.filter(
+      (t) => Number.isFinite(Number(t.from)) && Number.isFinite(Number(t.price)) && t.from !== "" && t.price !== ""
+    );
+
+    if (validTiers.length === 0) {
+      setError("يرجى إضافة شريحة واحدة على الأقل بقيم صحيحة");
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      if (packagingOptionId == null) {
+        setError("لا يوجد خيار تغليف لهذا المنتج لتفعيل قاعدة التسعير عليه");
+        return;
+      }
+
+      const payload =
+        discount_type === "NEW_PRICE"
+          ? {
+              rule_name_key: buildRuleNameKey(productName),
+              discount_type,
+              levels: validTiers.map((t) => ({
+                rule_id: 0,
+                minimum_quantity: Number(t.from),
+                price_per_unit_at_level: Number(t.price),
+                level_description_key: `${t.from || 0}-${t.to || 0}`
+              }))
+            }
+          : {
+              rule_name_key: buildRuleNameKey(productName),
+              discount_type,
+              levels: validTiers.map((t) => ({
+                rule_id: 0,
+                minimum_quantity: Number(t.from),
+                discount_value: Number(t.price),
+                level_description_key: `${t.from || 0}-${t.to || 0}`
+              }))
+            };
+
+      const response = await createPricingRule(payload);
+
+      if (response.status !== 200 && response.status !== 201) {
+        const data = response.data as { detail?: unknown };
+        setError(apiDetailToString(data?.detail) || "فشل في حفظ إعدادات التسعير");
+        return;
+      }
+
+      const createdRuleId = getCreatedRuleId(response.data);
+      if (createdRuleId == null) {
+        setError("تم إنشاء القاعدة، لكن لم يتم إرجاع رقم القاعدة لتفعيلها على المنتج");
+        return;
+      }
+
+      setPricingRuleId(createdRuleId);
+      await assignPricingRuleToPackagingOption({
+        rule_id: createdRuleId,
+        packaging_option_id: packagingOptionId,
+        is_active: enabled
+      });
+
+      onSave?.();
+      onClose();
+    } catch (err) {
+      const axiosError = err as AxiosError<{ detail?: unknown }>;
+      const detail = axiosError.response?.data?.detail;
+      setError(apiDetailToString(detail) || axiosError.message || "فشل في حفظ إعدادات التسعير");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -138,15 +257,9 @@ export default function SmartPricingDrawer({ isOpen, onClose, onSave }: SmartPri
 
         <div className="flex-1 space-y-6 overflow-y-auto p-6">
           <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-            <button type="button" role="switch" aria-checked={enabled} onClick={() => setEnabled((v) => !v)}
-              className={`relative h-6 w-11 shrink-0 rounded-full transition ${
-                enabled ? "bg-purple-500" : "bg-gray-200 dark:bg-white/10"
-              }`}>
-              <span
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-theme-sm transition-all ${
-                  enabled ? "left-0.5" : "left-[calc(100%-1.375rem)]"
-                }`}
-              />
+            <button type="button" role="switch" aria-checked={enabled} onClick={handleToggleEnabled} disabled={isAssigning || isSaving}
+            className={`relative h-6 w-11 shrink-0 rounded-full transition disabled:cursor-not-allowed disabled:opacity-60 ${enabled ? "bg-purple-500" : "bg-gray-200 dark:bg-white/10"}`}>
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-theme-sm transition-all ${enabled ? "left-0.5" : "left-[calc(100%-1.375rem)]"}`} />
             </button>
             <div className="flex flex-1 items-center justify-end gap-3 text-right">
               <div>
@@ -230,28 +343,24 @@ export default function SmartPricingDrawer({ isOpen, onClose, onSave }: SmartPri
               إضافة شريحة جديدة
             </button>
           </div>
-
-          {preview && (
-            <div className="rounded-xl border border-purple-100 bg-purple-50 p-4 text-right dark:border-purple-900/40 dark:bg-purple-950/30">
-              <p className="mb-1 text-sm font-semibold text-purple-700 dark:text-purple-300">معاينة حية</p>
-              <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-300">
-                إذا طلب العميل <span className="font-bold text-purple-700 dark:text-purple-300">{preview.sampleQty} قطعة</span>{" "}
-                سيتعرف النظام على الشريحة {preview.tierLabel} تلقائياً ويصبح سعر القطعة{" "}
-                <span className="font-bold text-purple-700 dark:text-purple-300">{preview.price} ر.س</span> بدلاً من{" "}
-                {preview.basePrice} ر.س
-              </p>
-            </div>
-          )}
         </div>
 
-        <div className="flex items-center gap-3 border-t border-gray-100 p-6 dark:border-gray-800">
-          <button type="button" onClick={handleSave} className="flex-1 rounded-lg bg-purple-500 px-4 py-3 text-sm font-medium text-white shadow-theme-xs transition hover:bg-purple-600">
-            حفظ الإعدادات
-          </button>
-          <button type="button" onClick={onClose} className="flex-1 rounded-lg bg-gray-100 px-4 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-200 dark:bg-gray-800
-          dark:text-gray-300 dark:hover:bg-gray-700">
-            إلغاء
-          </button>
+        <div className="border-t border-gray-100 p-6 dark:border-gray-800">
+          {error && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400">
+              {error}
+            </div>
+          )}
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={handleSave} disabled={isSaving} className="flex-1 rounded-lg bg-purple-500 px-4 py-3 text-sm font-medium text-white shadow-theme-xs transition
+            hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-60">
+              {isSaving ? "جاري الحفظ..." : "حفظ الإعدادات"}
+            </button>
+            <button type="button" onClick={onClose} disabled={isSaving} className="flex-1 rounded-lg bg-gray-100 px-4 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-200
+            disabled:opacity-60 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
+              إلغاء
+            </button>
+          </div>
         </div>
       </div>
     </div>
