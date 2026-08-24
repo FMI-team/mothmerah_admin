@@ -5,7 +5,6 @@ A comprehensive Next.js-based admin dashboard for the Mothmerah agricultural pla
 ## 📋 Table of Contents
 
 - [Overview](#overview)
-- [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [Features](#features)
 - [Getting Started](#getting-started)
@@ -33,21 +32,6 @@ The platform supports four distinct user roles with tailored dashboards and func
 - **WHOLESALER**: Bulk purchasing and management
 - **BASE_USER**: Individual user interface
 - **COMMERCIAL_BUYER**: Commercial purchasing interface
-
-## 🛠 Tech Stack
-
-- **Framework**: Next.js 16.2.6
-- **Language**: TypeScript 5.9.3
-- **Styling**: Tailwind CSS 4.2.1
-- **UI Components**: React 19.2.0
-- **API Client**: Axios 1.13.4
-- **Charting**: ApexCharts 4.7.0
-- **Calendar**: FullCalendar 6.1.19
-- **PDF Export**: jsPDF 4.2.1, pdfmake 0.3.5
-- **Drag & Drop**: React DnD 16.0.1
-- **File Upload**: React Dropzone 14.3.8
-- **Date Picker**: Flatpickr 4.6.13
-- **Map Visualization**: react-jvectormap
 
 ## 📁 Project Structure
 
@@ -328,36 +312,6 @@ npm start
 npm run lint
 ```
 
-### TypeScript Configuration
-- Target: ES2017
-- Module Resolution: Bundler
-- Strict Mode: Enabled
-- Path Aliases: `@/*` → `./src/*`
-
-### Styling
-- **Framework**: Tailwind CSS with forms plugin
-- **PostCSS**: Autoprefixer enabled
-- **SVG Support**: SVGR webpack loader for SVG components
-
-### Code Quality
-- ESLint configuration included
-- Prettier formatting config
-- TypeScript strict mode for type safety
-
-## 📦 Build Output
-
-- Build command: `next build`
-- Start command: `next start -p 8001`
-- Output port: 8001
-
-## 📄 License
-
-ISC License - See LICENSE file for details
-
 ---
 
 **Repository**: [FMI-team/mothmerah_admin](https://github.com/FMI-team/mothmerah_admin)
-
-**Created**: November 22, 2025
-
-**Language Composition**: TypeScript 97.7%, CSS 2.2%, JavaScript 0.1%
